@@ -28,9 +28,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 @HiltViewModel
 class CameraViewModel @Inject constructor(
@@ -44,7 +44,6 @@ class CameraViewModel @Inject constructor(
     private var hasFlashLight = false
     private var isLightOn = false
 
-
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
     suspend fun setupCamera(
@@ -52,7 +51,7 @@ class CameraViewModel @Inject constructor(
         lifecycleOwner: LifecycleOwner,
         enableTorch: Boolean = true,
     ): Float {
-        val cameraProvider = context.getCameraProvider() ?: return 0f
+        val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
         val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         // 論理カメラのID。論理カメラは複数の物理カメラにより構成される場合があり、マクロカメラはこのパターンに該当するはず
@@ -127,7 +126,10 @@ class CameraViewModel @Inject constructor(
             CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_MACRO
         ).setCaptureRequestOption(
             CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF
-        ).setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, distance).build()
+        ).setCaptureRequestOption(
+            CaptureRequest.LENS_FOCUS_DISTANCE, distance
+        ).build()
+
         camera2Control.captureRequestOptions = options
     }
 
@@ -139,33 +141,35 @@ class CameraViewModel @Inject constructor(
         }
 
         val resolver = context.contentResolver
+        val contentValues = createContentValues()
         val outputUri: Uri =
             MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val contentValues = createContentValues()
 
         val outputOptions = ImageCapture.OutputFileOptions.Builder(
             resolver, outputUri, contentValues,
         ).build()
 
-        imageCapture.takePicture(outputOptions,
+        imageCapture.takePicture(
+            outputOptions,
             ContextCompat.getMainExecutor(context),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    onSaved(outputUri)
+                    val savedUri = output.savedUri
+                    savedUri?.let {
+                        val values = ContentValues().apply {
+                            put(MediaStore.Images.Media.IS_PENDING, 0)
+                        }
+                        resolver.update(it, values, null, null)
 
-                    contentValues.clear()
-                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    resolver.update(outputUri, contentValues, null, null)
+                        onSaved(it)
+                    }
                 }
 
                 override fun onError(exc: ImageCaptureException) {
-                    contentValues.clear()
-                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    resolver.update(outputUri, contentValues, null, null)
-
                     onError(exc)
                 }
-            })
+            }
+        )
     }
 
     private fun createContentValues(): ContentValues {
@@ -183,8 +187,7 @@ class CameraViewModel @Inject constructor(
     }
 }
 
-
-suspend fun Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { cont ->
-    val future = ProcessCameraProvider.getInstance(this)
-    future.addListener({ cont.resume(future.get()) }, ContextCompat.getMainExecutor(this))
-}
+suspend fun Context.getCameraProvider(): ProcessCameraProvider =
+    withContext(Dispatchers.IO) {
+        ProcessCameraProvider.getInstance(this@getCameraProvider).get()
+    }
