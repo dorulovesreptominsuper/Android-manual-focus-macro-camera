@@ -1,6 +1,5 @@
 package com.example.manualfocusmacrocamera.ui.camera
 
-import android.app.Application
 import android.content.ContentValues
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
@@ -25,29 +24,35 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 @HiltViewModel
 class CameraViewModel @Inject constructor(
-    application: Application
-) : AndroidViewModel(application) {
+    @ApplicationContext private val context: Context,
+) : ViewModel() {
 
     var diopters: Float = 0f
         private set
-    private val context = application
     private var camera: Camera? = null
-    private var cameraProvider: ProcessCameraProvider? = null
     private lateinit var imageCapture: ImageCapture
+    private var hasFlashLight = false
+    private var isLightOn = false
 
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
-    @RequiresApi(Build.VERSION_CODES.P)
-    suspend fun setupCamera(previewView: PreviewView, lifecycleOwner: LifecycleOwner): Float {
-        cameraProvider = context.getCameraProvider()
+    suspend fun setupCamera(
+        previewView: PreviewView,
+        lifecycleOwner: LifecycleOwner,
+        enableTorch: Boolean = true,
+    ): Float {
+        val cameraProvider = context.getCameraProvider() ?: return 0f
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
         val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         // 論理カメラのID。論理カメラは複数の物理カメラにより構成される場合があり、マクロカメラはこのパターンに該当するはず
@@ -56,7 +61,14 @@ class CameraViewModel @Inject constructor(
             val characteristics = camMgr.getCameraCharacteristics(it)
             diopters =
                 characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
-            characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
+
+            val isBackCamera =
+                characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
+            if (isBackCamera) {
+                hasFlashLight =
+                    characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            }
+            isBackCamera
         }.orEmpty()
 
         val capabilities = camMgr.getCameraCharacteristics(backCameraId)
@@ -88,17 +100,24 @@ class CameraViewModel @Inject constructor(
         Camera2Interop.Extender(imageCaptureBuilder).setPhysicalCameraId(targetCameraId)
         imageCapture = imageCaptureBuilder.build()
 
-        cameraProvider!!.unbindAll()
-        camera = cameraProvider!!.bindToLifecycle(
+        cameraProvider.unbindAll()
+        camera = cameraProvider.bindToLifecycle(
             lifecycleOwner,
             logicalBackCameraSelector,
             previewBuilder.build().apply {
-                setSurfaceProvider(previewView.surfaceProvider)
+                surfaceProvider = previewView.surfaceProvider
             },
             imageCapture,
-        )
-
+        ).apply {
+            cameraControl.enableTorch(enableTorch)
+            isLightOn = enableTorch
+        }
         return diopters
+    }
+
+    fun switchTorch() {
+        isLightOn = !isLightOn
+        camera?.cameraControl?.enableTorch(isLightOn)
     }
 
     @OptIn(ExperimentalCamera2Interop::class)
@@ -114,10 +133,6 @@ class CameraViewModel @Inject constructor(
 
     @RequiresApi(Build.VERSION_CODES.Q)
     fun takePhoto(context: Context, onSaved: (Uri) -> Unit, onError: (Exception) -> Unit) {
-        if (!cameraProvider?.isBound(imageCapture)!!) {
-            onError(IllegalStateException("Camera is not bound"))
-            return
-        }
         if (!::imageCapture.isInitialized) {
             onError(IllegalStateException("imageCapture not initialized"))
             return
