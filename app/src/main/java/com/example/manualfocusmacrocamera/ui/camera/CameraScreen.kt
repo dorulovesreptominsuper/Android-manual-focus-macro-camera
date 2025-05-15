@@ -25,7 +25,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-@RequiresApi(Build.VERSION_CODES.Q)
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun CameraScreen(
     modifier: Modifier = Modifier,
@@ -40,6 +40,7 @@ fun CameraScreen(
 
     LaunchedEffect(Unit) {
         maxFocusDistance = viewModel.setupCamera(previewView, lifecycleOwner)
+
     }
 
     Column(modifier = modifier) {
@@ -74,29 +75,45 @@ fun CameraScreen(
             Text(text = "近")
         }
 
-        Button(
-            onClick = {
-                viewModel.takePhoto(
-                    context,
-                    onSaved = { uri ->
-                        Toast.makeText(context, "保存成功: $uri", Toast.LENGTH_SHORT)
-                            .show()
-                    },
-                    onError = { error ->
-                        Toast.makeText(
-                            context,
-                            "保存失敗: ${error.message}",
-                            Toast.LENGTH_LONG
-                        )
-                            .show()
-                    }
-                )
-            },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("📸 撮影")
+            Button(
+                onClick = viewModel::switchTorch,
+                modifier = Modifier
+                    .padding(16.dp)
+                    .weight(1f)
+            ) {
+                Text("ライト切替")
+            }
+
+            Button(
+                onClick = {
+                    viewModel.takePhoto(
+                        context,
+                        onSaved = { uri ->
+                            Toast.makeText(context, "保存成功: $uri", Toast.LENGTH_SHORT)
+                                .show()
+                        },
+                        onError = { error ->
+                            Toast.makeText(
+                                context,
+                                "保存失敗: ${error.message}",
+                                Toast.LENGTH_LONG
+                            )
+                                .show()
+                        }
+                    )
+                },
+                modifier = Modifier
+                    .padding(16.dp)
+                    .weight(1f)
+            ) {
+                Text("📸 撮影")
+            }
         }
     }
 }
