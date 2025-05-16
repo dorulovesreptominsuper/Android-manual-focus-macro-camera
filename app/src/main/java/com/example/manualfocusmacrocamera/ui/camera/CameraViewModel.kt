@@ -1,11 +1,15 @@
 package com.example.manualfocusmacrocamera.ui.camera
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
+import android.location.Location
+import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -23,14 +27,21 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 @HiltViewModel
 class CameraViewModel @Inject constructor(
@@ -155,13 +166,26 @@ class CameraViewModel @Inject constructor(
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val savedUri = output.savedUri
-                    savedUri?.let {
-                        val values = ContentValues().apply {
-                            put(MediaStore.Images.Media.IS_PENDING, 0)
-                        }
-                        resolver.update(it, values, null, null)
+                    viewModelScope.launch {
+                        val location = context.getCurrentLocation()
 
-                        onSaved(it)
+                        savedUri?.let {
+                            val pfd = resolver.openFileDescriptor(savedUri, "rw")
+                            pfd?.use { descriptor ->
+                                val exif = ExifInterface(descriptor.fileDescriptor)
+                                if (location != null) {
+                                    exif.setGpsInfo(location)
+                                    exif.setAltitude(location.altitude)
+                                    exif.saveAttributes()
+                                }
+                            }
+
+                            val values = ContentValues().apply {
+                                put(MediaStore.Images.Media.IS_PENDING, 0)
+                            }
+                            resolver.update(it, values, null, null)
+                            onSaved(it)
+                        }
                     }
                 }
 
@@ -190,4 +214,33 @@ class CameraViewModel @Inject constructor(
 suspend fun Context.getCameraProvider(): ProcessCameraProvider =
     withContext(Dispatchers.IO) {
         ProcessCameraProvider.getInstance(this@getCameraProvider).get()
+    }
+
+suspend fun Context.getCurrentLocation(): Location? =
+    suspendCancellableCoroutine { cont ->
+        val client = LocationServices.getFusedLocationProviderClient(this)
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            cont.resume(null)
+        }
+        client.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                cont.resume(location)
+            }
+            .addOnFailureListener { e ->
+                cont.resumeWithException(e)
+            }
     }
