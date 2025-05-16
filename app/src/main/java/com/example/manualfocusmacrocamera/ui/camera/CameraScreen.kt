@@ -92,21 +92,26 @@ fun CameraScreen(
 
             Button(
                 onClick = {
-                    viewModel.takePhoto(
-                        context,
-                        onSaved = { uri ->
-                            Toast.makeText(context, "保存成功: $uri", Toast.LENGTH_SHORT)
-                                .show()
-                        },
-                        onError = { error ->
-                            Toast.makeText(
-                                context,
-                                "保存失敗: ${error.message}",
-                                Toast.LENGTH_LONG
-                            )
-                                .show()
-                        }
-                    )
+                    try {
+
+                        viewModel.takePhoto(
+                            context,
+                            onSaved = { uri ->
+                                Toast.makeText(context, "保存成功: $uri", Toast.LENGTH_SHORT)
+                                    .show()
+                            },
+                            onError = { error ->
+                                Toast.makeText(
+                                    context,
+                                    "保存失敗: ${error.message}",
+                                    Toast.LENGTH_LONG
+                                )
+                                    .show()
+                            }
+                        )
+                    } catch (e: Exception) {
+                        // TODO: GPS情報の取得失敗は機能上致命的ではないのでスナックバーで通知するなどする
+                    }
                 },
                 modifier = Modifier
                     .padding(16.dp)
