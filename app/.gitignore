@@ -1,1 +1,34 @@
+# Gradle build output
+debug/
+release/
 /build
+/.gradle
+
+# Local configuration file (sdk path, etc)
+/local.properties
+
+# IDE files
+.idea/
+*.iml
+
+# Android Studio captures
+captures/
+
+# CMake build folder
+.cxx/
+
+# APK and related files
+*.apk
+*.ap_
+
+# Output files
+output.json
+
+# macOS
+.DS_Store
+
+# Log files
+*.log
+
+# Heap dumps
+*.hprof
