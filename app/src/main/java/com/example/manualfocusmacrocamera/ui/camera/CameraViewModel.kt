@@ -14,17 +14,23 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Size
 import androidx.annotation.OptIn
 import androidx.annotation.RequiresApi
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.State
@@ -54,10 +60,11 @@ import kotlin.coroutines.resumeWithException
 class CameraViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+    private var camera: Camera? = null
+    val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private lateinit var imageCapture: ImageCapture
     private var _diopters = mutableFloatStateOf(0f)
     val diopters: State<Float> = _diopters
-    private var camera: Camera? = null
-    private lateinit var imageCapture: ImageCapture
     private var hasFlashLight = false
     var isLightOn = mutableStateOf(false)
 
@@ -70,7 +77,6 @@ class CameraViewModel @Inject constructor(
     ): Float {
         val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-        val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         // 論理カメラのID。論理カメラは複数の物理カメラにより構成される場合があり、マクロカメラはこのパターンに該当するはず
         // （つまり論理カメラIDをさらに分解してマクロカメラに該当する物理カメラIDを取得する必要がある）
         val backCameraId = camMgr.cameraIdList.firstOrNull {
@@ -109,11 +115,15 @@ class CameraViewModel @Inject constructor(
             backCameraId
         }
 
+        val resolutionSelector = createResolutionSelector(targetCameraId)
         val previewBuilder = Preview.Builder()
         Camera2Interop.Extender(previewBuilder).setPhysicalCameraId(targetCameraId)
         val imageCaptureBuilder = ImageCapture.Builder()
         Camera2Interop.Extender(imageCaptureBuilder).setPhysicalCameraId(targetCameraId)
-        imageCapture = imageCaptureBuilder.build()
+        imageCapture = imageCaptureBuilder
+            .setCaptureMode(CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .setResolutionSelector(resolutionSelector)
+            .build()
 
         cameraProvider.unbindAll()
         camera = cameraProvider.bindToLifecycle(
@@ -147,6 +157,31 @@ class CameraViewModel @Inject constructor(
         ).build()
 
         camera2Control.captureRequestOptions = options
+    }
+
+    private fun getSupportedJpegSizes(cameraId: String): List<Size> {
+        val characteristics = camMgr.getCameraCharacteristics(cameraId)
+        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        return map?.getOutputSizes(android.graphics.ImageFormat.JPEG)?.toList() ?: emptyList()
+    }
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun createResolutionSelector(cameraId: String): ResolutionSelector {
+        // TODO: desiredSizeとAspectRatioは設定で選択できるようにする
+        val aspectRatioStrategy = AspectRatioStrategy(
+            AspectRatio.RATIO_16_9,
+            AspectRatioStrategy.FALLBACK_RULE_AUTO
+        )
+        val resolutions = getSupportedJpegSizes(cameraId)
+        val desiredSize = resolutions.maxByOrNull { it.width * it.height } ?: resolutions[0]
+        val resolutionStrategy = ResolutionStrategy(
+            desiredSize,
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+        )
+        return ResolutionSelector.Builder()
+            .setAspectRatioStrategy(aspectRatioStrategy)
+            .setResolutionStrategy(resolutionStrategy)
+            .build()
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
