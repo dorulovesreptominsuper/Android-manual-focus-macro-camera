@@ -59,6 +59,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.foundation.layout.android)
     implementation(libs.androidx.material3.android)
+    implementation(libs.androidx.material3.icons.android)
     implementation(libs.androidx.ui.tooling.preview.android)
     implementation(libs.camera.camera2)
     implementation(libs.camera.view)
