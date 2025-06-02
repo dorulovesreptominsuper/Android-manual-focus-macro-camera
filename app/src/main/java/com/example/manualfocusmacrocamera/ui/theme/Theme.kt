@@ -14,20 +14,20 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 
 val AquaBlue = Color(0xFF23C6E8) // 主役の水色
-val AquaBlueDark = Color(0xFF23DAC6)
+val Turquoise = Color(0xFF23DAC6)
 val AquaBlueLight = Color(0xFF7EEFFF)
 val OnAquaBlue = Color.White
 
 // 補色・アクセント
-val Secondary = Color(0xFF26A69A) // グリーン寄り水色
+val Secondary = Color(0xFF26A69A)
 val OnSecondary = Color.White
-val Tertiary = Color(0xFFF4D35E) // アクセントイエロー
+val Tertiary = Color(0xFFF4D35E)
 val OnTertiary = Color(0xFF3E2723)
 val Error = Color(0xFFE57373)
 val OnError = Color.White
 
 // サーフェス・背景
-val Background = Color(0xFFE6FBFF) // かなり淡い水色
+val Background = Color(0xFFE6FBFF)
 val OnBackground = Color(0xFF123943)
 val Surface = Color(0xFFD3F7FC)
 val OnSurface = Color(0xFF134651)
@@ -60,7 +60,7 @@ val LightColorScheme: ColorScheme = lightColorScheme(
 )
 
 val DarkColorScheme: ColorScheme = darkColorScheme(
-    primary = AquaBlueDark,
+    primary = Turquoise,
     onPrimary = Color.White,
     primaryContainer = AquaBlue,
     onPrimaryContainer = Color(0xFF00363D),
