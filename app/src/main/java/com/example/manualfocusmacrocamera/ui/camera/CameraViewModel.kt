@@ -27,6 +27,9 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -39,6 +42,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -47,13 +54,12 @@ import kotlin.coroutines.resumeWithException
 class CameraViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
-
-    var diopters: Float = 0f
-        private set
+    private var _diopters = mutableFloatStateOf(0f)
+    val diopters: State<Float> = _diopters
     private var camera: Camera? = null
     private lateinit var imageCapture: ImageCapture
     private var hasFlashLight = false
-    private var isLightOn = false
+    var isLightOn = mutableStateOf(false)
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
@@ -69,9 +75,8 @@ class CameraViewModel @Inject constructor(
         // （つまり論理カメラIDをさらに分解してマクロカメラに該当する物理カメラIDを取得する必要がある）
         val backCameraId = camMgr.cameraIdList.firstOrNull {
             val characteristics = camMgr.getCameraCharacteristics(it)
-            diopters =
+            _diopters.floatValue =
                 characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
-
             val isBackCamera =
                 characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
             if (isBackCamera) {
@@ -97,7 +102,7 @@ class CameraViewModel @Inject constructor(
                     characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
                 cameraId to diopters
             }.maxByOrNull { it.second ?: 0f }
-            diopters = consideredTheMostMacroLensIdAndMaximumFocus?.second ?: 0f
+            _diopters.floatValue = consideredTheMostMacroLensIdAndMaximumFocus?.second ?: 0f
             consideredTheMostMacroLensIdAndMaximumFocus?.first.orEmpty()
         } else {
             // 背面カメラが複数ではない場合はマクロカメラはないものと考えてもよければここはマクロ非対応のアラートを表示するロジックでいいが、デバイスの統一仕様がわからないので保留。
@@ -120,14 +125,14 @@ class CameraViewModel @Inject constructor(
             imageCapture,
         ).apply {
             cameraControl.enableTorch(enableTorch)
-            isLightOn = enableTorch
+            isLightOn.value = enableTorch
         }
-        return diopters
+        return diopters.value
     }
 
     fun switchTorch() {
-        isLightOn = !isLightOn
-        camera?.cameraControl?.enableTorch(isLightOn)
+        isLightOn.value = !isLightOn.value
+        camera?.cameraControl?.enableTorch(isLightOn.value)
     }
 
     @OptIn(ExperimentalCamera2Interop::class)
@@ -197,12 +202,10 @@ class CameraViewModel @Inject constructor(
     }
 
     private fun createContentValues(): ContentValues {
-        val photoTitle = "タイトル_${System.currentTimeMillis()}"
-        val photoDisplayName = "${System.currentTimeMillis()}撮影.jpg"
+        val photoDisplayName = formatCurrentTimeToJapaneseDateTimeString()
         val mimeType = "image/jpeg"
 
         return ContentValues().apply {
-            put(MediaStore.Images.Media.TITLE, photoTitle)
             put(MediaStore.Images.Media.DISPLAY_NAME, photoDisplayName)
             put(MediaStore.Images.Media.MIME_TYPE, mimeType)
             put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
@@ -244,3 +247,10 @@ suspend fun Context.getCurrentLocation(): Location? =
                 cont.resumeWithException(e)
             }
     }
+
+fun formatCurrentTimeToJapaneseDateTimeString(): String {
+    val instant = Instant.ofEpochMilli(System.currentTimeMillis())
+    val zonedDateTime = instant.atZone(ZoneId.systemDefault())
+    val formatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日 HH時mm分", Locale.JAPAN)
+    return formatter.format(zonedDateTime)
+}
