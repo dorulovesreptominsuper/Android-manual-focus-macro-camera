@@ -5,11 +5,12 @@ plugins {
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.hilt.gradle)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.protobuf)
 }
 
 android {
     namespace = "com.example.manualfocusmacrocamera"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.manualfocusmacrocamera"
@@ -47,6 +48,22 @@ android {
         buildConfig = false
         renderScript = false
         shaders = false
+    }
+}
+
+// For DataStore
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                create("java") {
+                    option("lite")
+                }
+            }
+        }
     }
 }
 
@@ -88,4 +105,9 @@ dependencies {
 
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    // Data Store
+    implementation(libs.datastore.core)
+    implementation(libs.datastore.preferences)
+    implementation(libs.protobuf.lite)
 }
