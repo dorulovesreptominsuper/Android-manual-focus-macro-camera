@@ -41,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.manualfocusmacrocamera.data.UserPreferencesProtoRepository
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -59,6 +60,7 @@ import kotlin.coroutines.resumeWithException
 @HiltViewModel
 class CameraViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val userPreferencesRepository: UserPreferencesProtoRepository
 ) : ViewModel() {
     private var camera: Camera? = null
     val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -66,15 +68,26 @@ class CameraViewModel @Inject constructor(
     private var _diopters = mutableFloatStateOf(0f)
     val diopters: State<Float> = _diopters
     private var hasFlashLight = false
-    var isLightOn = mutableStateOf(false)
+    private var _isInitialLightOn = mutableStateOf(false)
+    val isInitialLightOn: State<Boolean> = _isInitialLightOn
+    private var _isLightOn = mutableStateOf(false)
+    val isLightOn: State<Boolean> = _isLightOn
+    private var _isSaveGpsLocation = mutableStateOf(false)
+    val isSaveGpsLocation: State<Boolean> = _isSaveGpsLocation
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
     suspend fun setupCamera(
         previewView: PreviewView,
         lifecycleOwner: LifecycleOwner,
-        enableTorch: Boolean = true,
     ): Float {
+        viewModelScope.launch {
+            userPreferencesRepository.userSettingsFlow.collect {
+                _isInitialLightOn.value = it.isInitialLightOn
+                _isSaveGpsLocation.value = it.isSaveGpsLocation
+            }
+        }
+
         val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
         // 論理カメラのID。論理カメラは複数の物理カメラにより構成される場合があり、マクロカメラはこのパターンに該当するはず
@@ -134,15 +147,27 @@ class CameraViewModel @Inject constructor(
             },
             imageCapture,
         ).apply {
-            cameraControl.enableTorch(enableTorch)
-            isLightOn.value = enableTorch
+            _isLightOn.value = isInitialLightOn.value
+            cameraControl.enableTorch(isInitialLightOn.value)
         }
         return diopters.value
     }
 
     fun switchTorch() {
-        isLightOn.value = !isLightOn.value
-        camera?.cameraControl?.enableTorch(isLightOn.value)
+        _isLightOn.value = !_isLightOn.value
+        camera?.cameraControl?.enableTorch(_isLightOn.value)
+    }
+
+    fun setInitialLightOn(value: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateIsInitialLightOn(value)
+        }
+    }
+
+    fun setIfSaveGpsLocation(value: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateIsSaveGpsLocation(value)
+        }
     }
 
     @OptIn(ExperimentalCamera2Interop::class)
@@ -210,13 +235,15 @@ class CameraViewModel @Inject constructor(
                         val location = context.getCurrentLocation()
 
                         savedUri?.let {
-                            val pfd = resolver.openFileDescriptor(savedUri, "rw")
-                            pfd?.use { descriptor ->
-                                val exif = ExifInterface(descriptor.fileDescriptor)
-                                if (location != null) {
-                                    exif.setGpsInfo(location)
-                                    exif.setAltitude(location.altitude)
-                                    exif.saveAttributes()
+                            if (isSaveGpsLocation.value) {
+                                val pfd = resolver.openFileDescriptor(savedUri, "rw")
+                                pfd?.use { descriptor ->
+                                    val exif = ExifInterface(descriptor.fileDescriptor)
+                                    if (location != null) {
+                                        exif.setGpsInfo(location)
+                                        exif.setAltitude(location.altitude)
+                                        exif.saveAttributes()
+                                    }
                                 }
                             }
 
