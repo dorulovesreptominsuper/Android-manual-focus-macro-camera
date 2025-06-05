@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option java_package = "com.example.datastore";
+option java_multiple_files = true;
+
+enum ImageQuality {
+  HIGH = 0;
+  MIDDLE = 1;
+  LOW = 2;
+}
+
+enum Aspect {
+  Four_Three = 0;
+  SIXTEEN_NINE = 1;
+}
+
+message UserSettings {
+  bool is_initial_light_on = 1;
+  bool is_save_gps_location = 2;
+  ImageQuality quality = 3;
+  Aspect aspect = 4;
+}
