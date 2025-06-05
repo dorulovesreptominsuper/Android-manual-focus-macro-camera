@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -34,8 +35,6 @@ fun SettingsBottomSheet(
     setShowSheet: (Boolean) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var wifiEnabled by remember { mutableStateOf(true) }
-    var bluetoothEnabled by remember { mutableStateOf(true) }
     val cameraDiopters = viewModel.diopters
 
     if (showSheet) {
@@ -67,8 +66,8 @@ fun SettingsBottomSheet(
                 ) {
                     Text("アプリ起動時ライトを自動でONにする", modifier = Modifier.weight(1f))
                     AnimatedColorSwitch(
-                        checked = wifiEnabled,
-                        onCheckedChange = { wifiEnabled = it }
+                        checked = viewModel.isInitialLightOn.value,
+                        onCheckedChange = viewModel::setInitialLightOn
                     )
                 }
                 Spacer(Modifier.height(8.dp))
@@ -78,8 +77,8 @@ fun SettingsBottomSheet(
                 ) {
                     Text("画像にGPS情報を付与する", modifier = Modifier.weight(1f))
                     AnimatedColorSwitch(
-                        checked = bluetoothEnabled,
-                        onCheckedChange = { bluetoothEnabled = it }
+                        checked = viewModel.isSaveGpsLocation.value,
+                        onCheckedChange = viewModel::setIfSaveGpsLocation
                     )
                 }
                 Spacer(Modifier.height(60.dp))
