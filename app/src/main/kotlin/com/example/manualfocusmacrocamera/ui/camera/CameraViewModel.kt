@@ -24,6 +24,7 @@ import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
 import androidx.camera.core.ImageCaptureException
@@ -40,12 +41,15 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
 import com.example.manualfocusmacrocamera.data.UserPreferencesProtoRepository
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -63,6 +67,9 @@ class CameraViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesProtoRepository
 ) : ViewModel() {
     private var camera: Camera? = null
+    private var _cameraState: MutableStateFlow<CameraState.Type> =
+        MutableStateFlow(CameraState.Type.PENDING_OPEN)
+    val cameraState: StateFlow<CameraState.Type> = _cameraState
     val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private lateinit var imageCapture: ImageCapture
     private var _diopters = mutableFloatStateOf(0f)
@@ -149,13 +156,19 @@ class CameraViewModel @Inject constructor(
         ).apply {
             _isLightOn.value = isInitialLightOn.value
             cameraControl.enableTorch(isInitialLightOn.value)
+            viewModelScope.launch {
+                cameraInfo.cameraState.asFlow().collect {
+                    _cameraState.value = it.type
+                }
+            }
         }
+
         return diopters.value
     }
 
-    fun switchTorch() {
-        _isLightOn.value = !_isLightOn.value
-        camera?.cameraControl?.enableTorch(_isLightOn.value)
+    fun switchTorch(isOn: Boolean) {
+        _isLightOn.value = isOn
+        camera?.cameraControl?.enableTorch(isLightOn.value)
     }
 
     fun setInitialLightOn(value: Boolean) {
