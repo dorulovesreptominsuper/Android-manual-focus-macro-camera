@@ -75,7 +75,12 @@ class MainActivity : ComponentActivity() {
                             scope.launch {
                                 snackbarHostState.showSnackbar(message)
                             }
-                        }
+                        },
+                        showSnackbarWithCloseButton = { message ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(message, "OK")
+                            }
+                        },
                     )
 
                     SettingsBottomSheet(
