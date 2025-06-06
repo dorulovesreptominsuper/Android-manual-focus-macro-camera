@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
  * This class corresponds to the structure defined in user_settings.proto.
  */
 data class UserPreferences(
+    val isPermissionPurposeExplained: Boolean = false,
     val isInitialLightOn: Boolean = false,
     val isSaveGpsLocation: Boolean = false,
     val quality: Quality = Quality.HIGH,
@@ -26,7 +27,7 @@ data class UserPreferences(
      */
     enum class Quality {
         HIGH, MIDDLE, LOW;
-        
+
         companion object {
             fun fromInt(value: Int): Quality = when(value) {
                 0 -> HIGH
@@ -34,7 +35,7 @@ data class UserPreferences(
                 2 -> LOW
                 else -> HIGH
             }
-            
+
             fun toInt(quality: Quality): Int = when(quality) {
                 HIGH -> 0
                 MIDDLE -> 1
@@ -49,14 +50,14 @@ data class UserPreferences(
      */
     enum class AspectRatio {
         FOUR_THREE, SIXTEEN_NINE;
-        
+
         companion object {
             fun fromInt(value: Int): AspectRatio = when(value) {
                 0 -> FOUR_THREE
                 1 -> SIXTEEN_NINE
                 else -> FOUR_THREE
             }
-            
+
             fun toInt(aspect: AspectRatio): Int = when(aspect) {
                 FOUR_THREE -> 0
                 SIXTEEN_NINE -> 1
