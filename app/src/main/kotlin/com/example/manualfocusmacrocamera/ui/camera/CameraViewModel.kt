@@ -75,6 +75,8 @@ class CameraViewModel @Inject constructor(
     private var _diopters = mutableFloatStateOf(0f)
     val diopters: State<Float> = _diopters
     private var hasFlashLight = false
+    private var _isPermissionPurposeExplained = mutableStateOf(true)
+    val isPermissionPurposeExplained: State<Boolean> = _isPermissionPurposeExplained
     private var _isInitialLightOn = mutableStateOf(false)
     val isInitialLightOn: State<Boolean> = _isInitialLightOn
     private var _isLightOn = mutableStateOf(false)
@@ -82,19 +84,22 @@ class CameraViewModel @Inject constructor(
     private var _isSaveGpsLocation = mutableStateOf(false)
     val isSaveGpsLocation: State<Boolean> = _isSaveGpsLocation
 
+    init {
+        viewModelScope.launch {
+            userPreferencesRepository.userSettingsFlow.collect {
+                _isPermissionPurposeExplained.value = it.isPermissionPurposeExplained
+                _isInitialLightOn.value = it.isInitialLightOn
+                _isSaveGpsLocation.value = it.isSaveGpsLocation
+            }
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
     suspend fun setupCamera(
         previewView: PreviewView,
         lifecycleOwner: LifecycleOwner,
     ): Float {
-        viewModelScope.launch {
-            userPreferencesRepository.userSettingsFlow.collect {
-                _isInitialLightOn.value = it.isInitialLightOn
-                _isSaveGpsLocation.value = it.isSaveGpsLocation
-            }
-        }
-
         val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
         // 論理カメラのID。論理カメラは複数の物理カメラにより構成される場合があり、マクロカメラはこのパターンに該当するはず
@@ -116,7 +121,6 @@ class CameraViewModel @Inject constructor(
             .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
         val isLogicalMultiCamera =
             capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) == true
-
         val targetCameraId = if (isLogicalMultiCamera) {
             val physicalCameraIds =
                 camMgr.getCameraCharacteristics(backCameraId).physicalCameraIds
@@ -169,6 +173,12 @@ class CameraViewModel @Inject constructor(
     fun switchTorch(isOn: Boolean) {
         _isLightOn.value = isOn
         camera?.cameraControl?.enableTorch(isLightOn.value)
+    }
+
+    fun readPermissionPurposeExplanation() {
+        viewModelScope.launch {
+            userPreferencesRepository.updateIsPermissionPurposeExplained(true)
+        }
     }
 
     fun setInitialLightOn(value: Boolean) {

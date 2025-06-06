@@ -15,8 +15,9 @@ enum Aspect {
 }
 
 message UserSettings {
-  bool is_initial_light_on = 1;
-  bool is_save_gps_location = 2;
-  ImageQuality quality = 3;
-  Aspect aspect = 4;
+  bool is_permission_purpose_explained = 1;
+  bool is_initial_light_on = 2;
+  bool is_save_gps_location = 3;
+  ImageQuality quality = 4;
+  Aspect aspect = 5;
 }

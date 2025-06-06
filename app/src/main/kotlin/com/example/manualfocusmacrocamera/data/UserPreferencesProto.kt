@@ -62,6 +62,17 @@ class UserPreferencesProtoRepository(private val dataStore: DataStore<UserSettin
         }
 
     /**
+     * Update the permission purpose explained setting.
+     */
+    suspend fun updateIsPermissionPurposeExplained(isPermissionPurposeExplained: Boolean) {
+        dataStore.updateData { currentSettings ->
+            currentSettings.toBuilder()
+                .setIsPermissionPurposeExplained(isPermissionPurposeExplained)
+                .build()
+        }
+    }
+
+    /**
      * Update the initial light setting.
      */
     suspend fun updateIsInitialLightOn(isInitialLightOn: Boolean) {
@@ -110,6 +121,7 @@ class UserPreferencesProtoRepository(private val dataStore: DataStore<UserSettin
      */
     fun toUserPreferences(userSettings: UserSettings): UserPreferences {
         return UserPreferences(
+            isPermissionPurposeExplained = userSettings.isPermissionPurposeExplained,
             isInitialLightOn = userSettings.isInitialLightOn,
             isSaveGpsLocation = userSettings.isSaveGpsLocation,
             quality = when (userSettings.quality) {
