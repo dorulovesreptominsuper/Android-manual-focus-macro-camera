@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.manualfocusmacrocamera.ui.camera
 
 import android.Manifest
@@ -40,7 +42,7 @@ private enum class TargetPermission(val description: String) {
 
 @Composable
 fun PermissionsTerm(
-    isDialogNotShown: Boolean,
+    isDialogShown: Boolean,
     cameraPermissionsGranted: Boolean,
     locationPermissionsGranted: Boolean,
     onPermissionRequestFinished: () -> Unit,
@@ -67,15 +69,17 @@ fun PermissionsTerm(
     }
     var explanationDialogShown by remember { mutableStateOf(false) }
 
-    if (isDialogNotShown || needCameraPermissionRationale || needLocationPermissionRationale) {
+    if (!isDialogShown || needCameraPermissionRationale || needLocationPermissionRationale) {
         ExplainPermissionsPurposeDialog(
-            dialogTitle = "権限について" + if (!isDialogNotShown) "（再）" else "",
+            dialogTitle = "権限について" + if (isDialogShown) "（再）" else "",
             onOkClick = {
                 onDialogOkClick()
                 explanationDialogShown = true
             },
             targetPermission = targetPermission,
         )
+    } else {
+        onPermissionRequestFinished()
     }
 
     if (explanationDialogShown) {
@@ -85,7 +89,6 @@ fun PermissionsTerm(
         )
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable

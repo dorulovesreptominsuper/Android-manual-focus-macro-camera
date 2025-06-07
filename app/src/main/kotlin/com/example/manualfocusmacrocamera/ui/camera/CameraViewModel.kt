@@ -75,8 +75,6 @@ class CameraViewModel @Inject constructor(
     private var _diopters = mutableFloatStateOf(0f)
     val diopters: State<Float> = _diopters
     private var hasFlashLight = false
-    private var _isPermissionPurposeExplained = mutableStateOf(true)
-    val isPermissionPurposeExplained: State<Boolean> = _isPermissionPurposeExplained
     private var _isInitialLightOn = mutableStateOf(false)
     val isInitialLightOn: State<Boolean> = _isInitialLightOn
     private var _isLightOn = mutableStateOf(false)
@@ -84,12 +82,18 @@ class CameraViewModel @Inject constructor(
     private var _isSaveGpsLocation = mutableStateOf(false)
     val isSaveGpsLocation: State<Boolean> = _isSaveGpsLocation
 
+    var isPermissionPurposeExplained: Boolean? = null
+        private set
+    private var _isUserSettingsReady = MutableStateFlow(false)
+    val isUserSettingsReady: StateFlow<Boolean> = _isUserSettingsReady
+
     init {
         viewModelScope.launch {
             userPreferencesRepository.userSettingsFlow.collect {
-                _isPermissionPurposeExplained.value = it.isPermissionPurposeExplained
+                isPermissionPurposeExplained = it.isPermissionPurposeExplained
                 _isInitialLightOn.value = it.isInitialLightOn
                 _isSaveGpsLocation.value = it.isSaveGpsLocation
+                _isUserSettingsReady.value = true
             }
         }
     }
@@ -233,7 +237,12 @@ class CameraViewModel @Inject constructor(
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    fun takePhoto(context: Context, onSaved: (Uri) -> Unit, onError: (Exception) -> Unit) {
+    fun takePhoto(
+        context: Context,
+        isLocationEnabled: Boolean,
+        onSaved: (Uri) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
         if (!::imageCapture.isInitialized) {
             onError(IllegalStateException("imageCapture not initialized"))
             return
@@ -255,10 +264,15 @@ class CameraViewModel @Inject constructor(
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val savedUri = output.savedUri
                     viewModelScope.launch {
-                        val location = context.getCurrentLocation()
-
                         savedUri?.let {
-                            if (isSaveGpsLocation.value) {
+                            if (isSaveGpsLocation.value && isLocationEnabled) {
+                                val location =
+                                    try {
+                                        context.getCurrentLocation()
+                                    } catch (e: SecurityException) {
+                                        onError(e)
+                                        return@let
+                                    }
                                 val pfd = resolver.openFileDescriptor(savedUri, "rw")
                                 pfd?.use { descriptor ->
                                     val exif = ExifInterface(descriptor.fileDescriptor)
@@ -329,7 +343,8 @@ suspend fun Context.getCurrentLocation(): Location? =
                 cont.resume(location)
             }
             .addOnFailureListener { e ->
-                cont.resumeWithException(e)
+                // ロケーションのパーミッションが2種類あるためそれぞれで重複してresumeされてしまいクラッシュするのを防止
+                if (cont.isActive) cont.resumeWithException(e)
             }
     }
 
