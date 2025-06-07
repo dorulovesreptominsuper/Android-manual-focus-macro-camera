@@ -65,10 +65,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.manualfocusmacrocamera.ui.AnimatedAmplitudeWavyCircleButton
-import kotlinx.coroutines.FlowPreview
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, FlowPreview::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun CameraScreen(
@@ -100,16 +99,17 @@ fun CameraScreen(
                     context.checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         )
     }
+    val isInitialized by viewModel.isUserSettingsReady.collectAsStateWithLifecycle()
 
-    if (!permissionsTermFinished) {
+    if (!isInitialized) {
+        LoadingScreen()
+    } else if (!permissionsTermFinished) {
         PermissionsTerm(
-            isDialogNotShown = viewModel.isPermissionPurposeExplained.value.not(),
+            isDialogShown = viewModel.isPermissionPurposeExplained ?: false,
             cameraPermissionsGranted = hasCameraPermission,
             locationPermissionsGranted = hasLocationPermission,
             onDialogOkClick = {
-                if (viewModel.isPermissionPurposeExplained.value.not()) {
-                    viewModel::readPermissionPurposeExplanation
-                }
+                viewModel.readPermissionPurposeExplanation()
             },
             onPermissionRequestFinished = {
                 permissionsTermFinished = true
@@ -174,7 +174,7 @@ fun CameraScreen(
                 }
 
                 !isCameraOpened -> {
-                    LoadingIndicator(modifier = Modifier.size(100.dp))
+                    LoadingScreen()
                 }
 
                 else -> {
@@ -224,19 +224,16 @@ fun CameraScreen(
                                 .pointerInput(Unit) {
                                     detectTapGestures(
                                         onDoubleTap = {
-                                            try {
-                                                viewModel.takePhoto(
-                                                    context,
-                                                    onSaved = { uri ->
-                                                        showSnackbar("無事写真を保存できた！")
-                                                    },
-                                                    onError = { error ->
-                                                        showSnackbar("失敗：${error.cause}")
-                                                    }
-                                                )
-                                            } catch (e: Exception) {
-                                                showSnackbar("位置情報取得エラー: ${e.localizedMessage}")
-                                            }
+                                            viewModel.takePhoto(
+                                                context = context,
+                                                isLocationEnabled = hasLocationPermission,
+                                                onSaved = { uri ->
+                                                    showSnackbar("無事写真を保存できた！")
+                                                },
+                                                onError = { error ->
+                                                    showSnackbar("失敗：${error.cause}")
+                                                }
+                                            )
                                         },
                                     )
                                 },
@@ -250,6 +247,14 @@ fun CameraScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun LoadingScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        LoadingIndicator(modifier = Modifier.size(100.dp))
     }
 }
 
