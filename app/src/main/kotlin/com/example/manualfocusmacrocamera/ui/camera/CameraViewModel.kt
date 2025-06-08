@@ -43,7 +43,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
-import com.example.manualfocusmacrocamera.data.UserPreferencesProtoRepository
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -64,7 +63,6 @@ import kotlin.coroutines.resumeWithException
 @HiltViewModel
 class CameraViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val userPreferencesRepository: UserPreferencesProtoRepository
 ) : ViewModel() {
     private var camera: Camera? = null
     private var _cameraState: MutableStateFlow<CameraState.Type> =
@@ -72,37 +70,18 @@ class CameraViewModel @Inject constructor(
     val cameraState: StateFlow<CameraState.Type> = _cameraState
     val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private lateinit var imageCapture: ImageCapture
-    private var _diopters = mutableFloatStateOf(0f)
-    val diopters: State<Float> = _diopters
+    private var _minimumFocusDistance = mutableFloatStateOf(0f)
+    val minimumFocusDistance: State<Float> = _minimumFocusDistance
     private var hasFlashLight = false
-    private var _isInitialLightOn = mutableStateOf(false)
-    val isInitialLightOn: State<Boolean> = _isInitialLightOn
     private var _isLightOn = mutableStateOf(false)
     val isLightOn: State<Boolean> = _isLightOn
-    private var _isSaveGpsLocation = mutableStateOf(false)
-    val isSaveGpsLocation: State<Boolean> = _isSaveGpsLocation
-
-    var isPermissionPurposeExplained: Boolean? = null
-        private set
-    private var _isUserSettingsReady = MutableStateFlow(false)
-    val isUserSettingsReady: StateFlow<Boolean> = _isUserSettingsReady
-
-    init {
-        viewModelScope.launch {
-            userPreferencesRepository.userSettingsFlow.collect {
-                isPermissionPurposeExplained = it.isPermissionPurposeExplained
-                _isInitialLightOn.value = it.isInitialLightOn
-                _isSaveGpsLocation.value = it.isSaveGpsLocation
-                _isUserSettingsReady.value = true
-            }
-        }
-    }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
     suspend fun setupCamera(
         previewView: PreviewView,
         lifecycleOwner: LifecycleOwner,
+        isInitialLightOn: Boolean,
     ): Float {
         val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -110,8 +89,6 @@ class CameraViewModel @Inject constructor(
         // （つまり論理カメラIDをさらに分解してマクロカメラに該当する物理カメラIDを取得する必要がある）
         val backCameraId = camMgr.cameraIdList.firstOrNull {
             val characteristics = camMgr.getCameraCharacteristics(it)
-            _diopters.floatValue =
-                characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
             val isBackCamera =
                 characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
             if (isBackCamera) {
@@ -136,7 +113,8 @@ class CameraViewModel @Inject constructor(
                     characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
                 cameraId to diopters
             }.maxByOrNull { it.second ?: 0f }
-            _diopters.floatValue = consideredTheMostMacroLensIdAndMaximumFocus?.second ?: 0f
+            _minimumFocusDistance.floatValue =
+                consideredTheMostMacroLensIdAndMaximumFocus?.second ?: 0f
             consideredTheMostMacroLensIdAndMaximumFocus?.first.orEmpty()
         } else {
             // 背面カメラが複数ではない場合はマクロカメラはないものと考えてもよければここはマクロ非対応のアラートを表示するロジックでいいが、デバイスの統一仕様がわからないので保留。
@@ -162,39 +140,24 @@ class CameraViewModel @Inject constructor(
             },
             imageCapture,
         ).apply {
-            _isLightOn.value = isInitialLightOn.value
-            cameraControl.enableTorch(isInitialLightOn.value)
+            _isLightOn.value = isInitialLightOn
+            cameraControl.enableTorch(isInitialLightOn)
             viewModelScope.launch {
                 cameraInfo.cameraState.asFlow().collect {
                     _cameraState.value = it.type
                 }
             }
         }
-
-        return diopters.value
+        return minimumFocusDistance.value
     }
 
     fun switchTorch(isOn: Boolean) {
         _isLightOn.value = isOn
+        resumeTorch()
+    }
+
+    fun resumeTorch() {
         camera?.cameraControl?.enableTorch(isLightOn.value)
-    }
-
-    fun readPermissionPurposeExplanation() {
-        viewModelScope.launch {
-            userPreferencesRepository.updateIsPermissionPurposeExplained(true)
-        }
-    }
-
-    fun setInitialLightOn(value: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.updateIsInitialLightOn(value)
-        }
-    }
-
-    fun setIfSaveGpsLocation(value: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.updateIsSaveGpsLocation(value)
-        }
     }
 
     @OptIn(ExperimentalCamera2Interop::class)
@@ -265,7 +228,7 @@ class CameraViewModel @Inject constructor(
                     val savedUri = output.savedUri
                     viewModelScope.launch {
                         savedUri?.let {
-                            if (isSaveGpsLocation.value && isLocationEnabled) {
+                            if (isLocationEnabled) {
                                 val location =
                                     try {
                                         context.getCurrentLocation()
