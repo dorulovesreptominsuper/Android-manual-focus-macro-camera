@@ -2,4 +2,10 @@
 <resources>
 
     <style name="Theme.ManualFocusMacroCamera" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.ManualFocusMacroCamera.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/white</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.ManualFocusMacroCamera</item>
+    </style>
 </resources>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288">
+    <!-- カメラボディ -->
+    <rect x="50" y="100" width="188" height="88" rx="4" fill="#000"/>
+    <!-- 液晶ビュー表示 -->
+    <rect x="64" y="108" width="48" height="32" rx="4" fill="#fff"/>
+    <!-- レンズ -->
+    <circle cx="180" cy="144" r="34" fill="#fff"/>
+    <circle cx="180" cy="144" r="24" fill="#000"/>
+    <!-- 虫眼鏡柄 -->
+    <rect x="210" y="174" width="40" height="8" rx="4" transform="rotate(45 210 174)" fill="#000"/>
+    <!-- フラッシュ -->
+    <line x1="200" y1="84" x2="216" y2="70" stroke="#000" stroke-width="6"/>
+</svg>
