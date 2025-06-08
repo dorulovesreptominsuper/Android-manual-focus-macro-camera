@@ -144,7 +144,7 @@ class CameraViewModel @Inject constructor(
         }
 
         val resolutionSelector = createResolutionSelector(targetCameraId)
-        val previewBuilder = Preview.Builder()
+        val previewBuilder = Preview.Builder().setResolutionSelector(resolutionSelector)
         Camera2Interop.Extender(previewBuilder).setPhysicalCameraId(targetCameraId)
         val imageCaptureBuilder = ImageCapture.Builder()
         Camera2Interop.Extender(imageCaptureBuilder).setPhysicalCameraId(targetCameraId)

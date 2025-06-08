@@ -137,7 +137,11 @@ fun CameraScreen(
             contentAlignment = Alignment.Center,
         ) {
             AndroidView(
-                factory = { previewView },
+                factory = {
+                    previewView.apply {
+                        scaleType = PreviewView.ScaleType.FIT_CENTER
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
 
