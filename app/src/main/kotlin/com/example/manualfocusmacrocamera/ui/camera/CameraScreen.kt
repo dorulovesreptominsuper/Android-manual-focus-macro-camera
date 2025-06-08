@@ -65,6 +65,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.manualfocusmacrocamera.ui.AnimatedAmplitudeWavyCircleButton
+import com.example.manualfocusmacrocamera.ui.settings.UserSettingsViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -72,7 +73,8 @@ import java.util.Locale
 @Composable
 fun CameraScreen(
     modifier: Modifier = Modifier,
-    viewModel: CameraViewModel = hiltViewModel(),
+    cameraViewModel: CameraViewModel = hiltViewModel(),
+    settingsViewModel: UserSettingsViewModel = hiltViewModel(),
     showSnackbar: (String) -> Unit = {},
     showSnackbarWithCloseButton: (String) -> Unit = {},
 ) {
@@ -81,11 +83,14 @@ fun CameraScreen(
     val cutout = WindowInsets.displayCutout.asPaddingValues()
     val previewView = remember { PreviewView(context) }
 
+    val settings by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
+    val isSettingFetched by remember(settings) { mutableStateOf(settingsViewModel.hasReady) }
+
     var maxFocusDistance by remember { mutableFloatStateOf(0f) }
     var diopterFocusDepth by remember { mutableFloatStateOf(0f) }
     val swipeSensitivityFactor = 0.03f // スワイプしたPX数にかける係数。実機で動かしてちょうどいい感じの数字がこの辺り。
 
-    val cameraState by viewModel.cameraState.collectAsStateWithLifecycle()
+    val cameraState by cameraViewModel.cameraState.collectAsStateWithLifecycle()
     val isCameraOpened by remember(cameraState) {
         mutableStateOf(cameraState == CameraState.Type.OPEN)
     }
@@ -99,17 +104,16 @@ fun CameraScreen(
                     context.checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         )
     }
-    val isInitialized by viewModel.isUserSettingsReady.collectAsStateWithLifecycle()
 
-    if (!isInitialized) {
+    if (!isSettingFetched) {
         LoadingScreen()
     } else if (!permissionsTermFinished) {
         PermissionsTerm(
-            isDialogShown = viewModel.isPermissionPurposeExplained ?: false,
+            isDialogShown = settings.isPermissionPurposeExplained,
             cameraPermissionsGranted = hasCameraPermission,
             locationPermissionsGranted = hasLocationPermission,
             onDialogOkClick = {
-                viewModel.readPermissionPurposeExplanation()
+                settingsViewModel.updateIsPermissionPurposeExplained(true)
             },
             onPermissionRequestFinished = {
                 permissionsTermFinished = true
@@ -122,15 +126,20 @@ fun CameraScreen(
 
         LaunchedEffect(hasCameraPermission) {
             if (hasCameraPermission) {
-                maxFocusDistance = viewModel.setupCamera(previewView, lifecycleOwner)
+                maxFocusDistance = cameraViewModel.setupCamera(
+                    previewView = previewView,
+                    lifecycleOwner = lifecycleOwner,
+                    isInitialLightOn = settings.isInitialLightOn
+                )
             }
         }
 
         LaunchedEffect(Unit) {
             snapshotFlow { diopterFocusDepth }.collect { depth ->
-                viewModel.setManualFocus(depth)
+                cameraViewModel.setManualFocus(depth)
             }
         }
+
 
         Box(
             modifier = modifier.fillMaxSize(),
@@ -182,7 +191,8 @@ fun CameraScreen(
                 }
 
                 else -> {
-                    viewModel.switchTorch(viewModel.isLightOn.value)
+                    // onStop時に勝手にライトが消えてしまうのでonResumeかつカメラOPEN時に再度付け直す
+                    cameraViewModel.resumeTorch()
 
                     Column(
                         modifier = Modifier
@@ -228,9 +238,10 @@ fun CameraScreen(
                                 .pointerInput(Unit) {
                                     detectTapGestures(
                                         onDoubleTap = {
-                                            viewModel.takePhoto(
+                                            cameraViewModel.takePhoto(
                                                 context = context,
-                                                isLocationEnabled = hasLocationPermission,
+                                                isLocationEnabled =
+                                                    hasLocationPermission && settings.isSaveGpsLocation,
                                                 onSaved = { uri ->
                                                     showSnackbar("無事写真を保存できた！")
                                                 },
@@ -243,8 +254,8 @@ fun CameraScreen(
                                 },
                         )
                         LightOnOffButton(
-                            isLightOn = viewModel.isLightOn.value,
-                            onClick = viewModel::switchTorch,
+                            isLightOn = cameraViewModel.isLightOn.value,
+                            onClick = cameraViewModel::switchTorch,
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
