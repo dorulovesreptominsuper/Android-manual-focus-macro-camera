@@ -39,6 +39,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -62,6 +63,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.manualfocusmacrocamera.ui.AnimatedAmplitudeWavyCircleButton
@@ -105,6 +109,13 @@ fun CameraScreen(
         )
     }
 
+    ControlLight(
+        lifecycleOwner = lifecycleOwner,
+        isCameraOpened = isCameraOpened,
+        onAppLaunch = { cameraViewModel.switchTorch(settings.isInitialLightOn) },
+        onAppResume = cameraViewModel::resumeTorch,
+    )
+
     if (!isSettingFetched) {
         LoadingScreen()
     } else if (!permissionsTermFinished) {
@@ -124,12 +135,12 @@ fun CameraScreen(
         )
     } else {
 
-        LaunchedEffect(hasCameraPermission) {
+        LaunchedEffect(hasCameraPermission, settings) {
             if (hasCameraPermission) {
                 maxFocusDistance = cameraViewModel.setupCamera(
                     previewView = previewView,
                     lifecycleOwner = lifecycleOwner,
-                    isInitialLightOn = settings.isInitialLightOn
+                    settings = settings
                 )
             }
         }
@@ -191,9 +202,6 @@ fun CameraScreen(
                 }
 
                 else -> {
-                    // onStop時に勝手にライトが消えてしまうのでonResumeかつカメラOPEN時に再度付け直す
-                    cameraViewModel.resumeTorch()
-
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -261,6 +269,37 @@ fun CameraScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ControlLight(
+    isCameraOpened: Boolean,
+    lifecycleOwner: LifecycleOwner,
+    onAppLaunch: () -> Unit,
+    onAppResume: () -> Unit,
+) {
+    var isLaunchedApp by remember { mutableStateOf(true) }
+
+    LaunchedEffect(isCameraOpened) {
+        if (isLaunchedApp && isCameraOpened) {
+            isLaunchedApp = false
+            onAppLaunch()
+        }
+    }
+    // onStop時に勝手にライトが消えてしまうのでonResumeかつカメラOPEN時に再度付け直す
+    DisposableEffect(lifecycleOwner, isCameraOpened) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onAppResume()
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 }

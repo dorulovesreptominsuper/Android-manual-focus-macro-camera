@@ -43,6 +43,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
+import com.example.manualfocusmacrocamera.data.UserPreferences
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -81,7 +82,7 @@ class CameraViewModel @Inject constructor(
     suspend fun setupCamera(
         previewView: PreviewView,
         lifecycleOwner: LifecycleOwner,
-        isInitialLightOn: Boolean,
+        settings: UserPreferences,
     ): Float {
         val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -121,7 +122,8 @@ class CameraViewModel @Inject constructor(
             backCameraId
         }
 
-        val resolutionSelector = createResolutionSelector(targetCameraId)
+        val resolutionSelector =
+            createResolutionSelector(cameraId = targetCameraId, settings = settings)
         val previewBuilder = Preview.Builder().setResolutionSelector(resolutionSelector)
         Camera2Interop.Extender(previewBuilder).setPhysicalCameraId(targetCameraId)
         val imageCaptureBuilder = ImageCapture.Builder()
@@ -140,8 +142,6 @@ class CameraViewModel @Inject constructor(
             },
             imageCapture,
         ).apply {
-            _isLightOn.value = isInitialLightOn
-            cameraControl.enableTorch(isInitialLightOn)
             viewModelScope.launch {
                 cameraInfo.cameraState.asFlow().collect {
                     _cameraState.value = it.type
@@ -181,14 +181,30 @@ class CameraViewModel @Inject constructor(
     }
 
     @OptIn(ExperimentalCamera2Interop::class)
-    private fun createResolutionSelector(cameraId: String): ResolutionSelector {
+    private fun createResolutionSelector(
+        cameraId: String,
+        settings: UserPreferences,
+    ): ResolutionSelector {
         // TODO: desiredSizeとAspectRatioは設定で選択できるようにする
         val aspectRatioStrategy = AspectRatioStrategy(
-            AspectRatio.RATIO_16_9,
+            settings.getAspectRatio(),
             AspectRatioStrategy.FALLBACK_RULE_AUTO
         )
-        val resolutions = getSupportedJpegSizes(cameraId)
-        val desiredSize = resolutions.maxByOrNull { it.width * it.height } ?: resolutions[0]
+        val resolutions =
+            getSupportedJpegSizes(cameraId).ifEmpty { throw IllegalStateException() }
+        val desiredSize = when (settings.quality) {
+            UserPreferences.Quality.HIGH -> {
+                resolutions.maxByOrNull { it.width * it.height } ?: resolutions[0]
+            }
+
+            UserPreferences.Quality.MIDDLE -> {
+                resolutions.sortedByDescending { it.width * it.height }[resolutions.size / 4]
+            }
+
+            UserPreferences.Quality.LOW -> {
+                resolutions.sortedByDescending { it.width * it.height }[resolutions.size / 2]
+            }
+        }
         val resolutionStrategy = ResolutionStrategy(
             desiredSize,
             ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
@@ -197,6 +213,13 @@ class CameraViewModel @Inject constructor(
             .setAspectRatioStrategy(aspectRatioStrategy)
             .setResolutionStrategy(resolutionStrategy)
             .build()
+    }
+
+    private fun UserPreferences.getAspectRatio(): Int {
+        return when (aspect) {
+            UserPreferences.AspectRatio.FOUR_THREE -> AspectRatio.RATIO_4_3
+            UserPreferences.AspectRatio.SIXTEEN_NINE -> AspectRatio.RATIO_16_9
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
