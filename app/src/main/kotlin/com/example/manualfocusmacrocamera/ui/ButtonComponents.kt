@@ -42,7 +42,98 @@ import androidx.compose.ui.unit.LayoutDirection
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun M3ExpressiveButtonGroup2() {
+    val numButtons = 10
+    ButtonGroup(
+        overflowIndicator = { menuState ->
+            FilledIconButton(
+                onClick = {
+                    if (menuState.isExpanded) {
+                        menuState.dismiss()
+                    } else {
+                        menuState.show()
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = "Localized description"
+                )
+            }
+        }
+    ) {
+        for (i in 0 until numButtons) {
+            clickableItem(onClick = {}, label = "$i")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Preview
+@Composable
+fun M3ExpressiveButtonGroup2Preview() {
+    M3ExpressiveButtonGroup2()
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun M3ExpressiveButtonGroup(
+    modifier: Modifier = Modifier,
+    options: List<String> = emptyList(),
+    currentSelectedIndex: Int = 0,
+    onOptionSelected: (Int) -> Unit = {},
+) {
+    var selectedIndex by remember { mutableIntStateOf(currentSelectedIndex) }
+
+    Row(
+        modifier.padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        options.forEachIndexed { index, label ->
+            ToggleButton(
+                checked = selectedIndex == index,
+                onCheckedChange = {
+                    onOptionSelected(index)
+                    selectedIndex = index
+                },
+                modifier = Modifier.semantics { role = Role.RadioButton },
+                shapes =
+                    when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                colors = ToggleButtonDefaults.toggleButtonColors()
+                    .copy(containerColor = Color.Gray),
+            ) {
+                Text(label)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Preview
+@Composable
+fun M3ExpressiveButtonGroupPreview() {
+    M3ExpressiveButtonGroup(options = listOf("あいう", "かきく"))
+}
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
