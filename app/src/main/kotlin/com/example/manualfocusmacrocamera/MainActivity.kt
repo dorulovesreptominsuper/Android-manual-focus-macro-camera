@@ -2,6 +2,7 @@ package com.example.manualfocusmacrocamera
 
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,6 +37,8 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val keyEventState = mutableStateOf(Pair(0, 0L))
+
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -73,6 +76,7 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     CameraScreen(
                         modifier = Modifier.padding(innerPadding),
+                        clickedVolumeKey = keyEventState.value,
                         showSnackbar = { message ->
                             scope.launch {
                                 snackbarHostState.showSnackbar(message)
@@ -92,5 +96,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            keyEventState.value = Pair(keyCode, System.currentTimeMillis())
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }
