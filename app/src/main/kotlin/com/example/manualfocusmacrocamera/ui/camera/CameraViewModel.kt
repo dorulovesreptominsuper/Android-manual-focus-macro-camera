@@ -35,7 +35,6 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -50,6 +49,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -68,14 +68,21 @@ class CameraViewModel @Inject constructor(
     private var camera: Camera? = null
     private var _cameraState: MutableStateFlow<CameraState.Type> =
         MutableStateFlow(CameraState.Type.PENDING_OPEN)
-    val cameraState: StateFlow<CameraState.Type> = _cameraState
+    val cameraState: StateFlow<CameraState.Type> = _cameraState.asStateFlow()
     val camMgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private lateinit var imageCapture: ImageCapture
-    private var _minimumFocusDistance = mutableFloatStateOf(0f)
-    val minimumFocusDistance: State<Float> = _minimumFocusDistance
     private var hasFlashLight = false
+    private var _macroCameraInfo = MutableStateFlow(MacroCameraInfo(0f, 0f, 0f))
+    val macroCameraInfo: StateFlow<MacroCameraInfo> = _macroCameraInfo.asStateFlow()
     private var _isLightOn = mutableStateOf(false)
     val isLightOn: State<Boolean> = _isLightOn
+    private var zoomRatio = 1f
+
+    data class MacroCameraInfo(
+        val minimumFocusDistance: Float,
+        val minimumZoomRatio: Float,
+        val maximumZoomRatio: Float,
+    )
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     @OptIn(ExperimentalCamera2Interop::class)
@@ -83,7 +90,7 @@ class CameraViewModel @Inject constructor(
         previewView: PreviewView,
         lifecycleOwner: LifecycleOwner,
         settings: UserPreferences,
-    ): Float {
+    ) {
         val cameraProvider = context.getCameraProvider()
         val logicalBackCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
         // 論理カメラのID。論理カメラは複数の物理カメラにより構成される場合があり、マクロカメラはこのパターンに該当するはず
@@ -114,8 +121,6 @@ class CameraViewModel @Inject constructor(
                     characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
                 cameraId to diopters
             }.maxByOrNull { it.second ?: 0f }
-            _minimumFocusDistance.floatValue =
-                consideredTheMostMacroLensIdAndMaximumFocus?.second ?: 0f
             consideredTheMostMacroLensIdAndMaximumFocus?.first.orEmpty()
         } else {
             // 背面カメラが複数ではない場合はマクロカメラはないものと考えてもよければここはマクロ非対応のアラートを表示するロジックでいいが、デバイスの統一仕様がわからないので保留。
@@ -147,8 +152,19 @@ class CameraViewModel @Inject constructor(
                     _cameraState.value = it.type
                 }
             }
+            cameraControl.setZoomRatio(zoomRatio)
         }
-        return minimumFocusDistance.value
+
+        _macroCameraInfo.value = MacroCameraInfo(
+            minimumFocusDistance = camMgr.getCameraCharacteristics(targetCameraId)
+                .get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f,
+            minimumZoomRatio = camera?.cameraInfo?.zoomState?.value?.minZoomRatio ?: 0f,
+            maximumZoomRatio = camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: 0f,
+        )
+    }
+
+    fun setZoomRatio(ratio: Float) {
+        zoomRatio = ratio
     }
 
     fun switchTorch(isOn: Boolean) {
