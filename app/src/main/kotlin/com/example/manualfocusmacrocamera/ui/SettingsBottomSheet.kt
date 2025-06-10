@@ -2,7 +2,6 @@ package com.example.manualfocusmacrocamera.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowColumn
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +42,8 @@ fun SettingsBottomSheet(
     setShowSheet: (Boolean) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val minimumFocusDistance = viewModel.minimumFocusDistance
+    val macroCameraInfo by viewModel.macroCameraInfo.collectAsStateWithLifecycle()
+    val minimumFocusDistance = macroCameraInfo.minimumFocusDistance
 
     val settings by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
     val isSettingFetched by remember(settings) { mutableStateOf(settingsViewModel.hasReady) }
@@ -62,7 +62,7 @@ fun SettingsBottomSheet(
                     .verticalScroll(rememberScrollState()),
             ) {
                 val focusDistanceText =
-                    String.format(Locale.US, "%.2f", 100 / minimumFocusDistance.value)
+                    String.format(Locale.US, "%.2f", 100 / minimumFocusDistance)
                 Text(
                     buildAnnotatedString {
                         append(" このスマホの最短フォーカス距離は ")

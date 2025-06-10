@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.view.KeyEvent
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraState
 import androidx.camera.view.PreviewView
@@ -16,6 +17,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -25,17 +27,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +64,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.core.content.ContextCompat
+import androidx.graphics.shapes.RoundedPolygon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -81,6 +84,7 @@ fun CameraScreen(
     settingsViewModel: UserSettingsViewModel = hiltViewModel(),
     showSnackbar: (String) -> Unit = {},
     showSnackbarWithCloseButton: (String) -> Unit = {},
+    clickedVolumeKey: Pair<Int, Long>,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -90,7 +94,7 @@ fun CameraScreen(
     val settings by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
     val isSettingFetched by remember(settings) { mutableStateOf(settingsViewModel.hasReady) }
 
-    var maxFocusDistance by remember { mutableFloatStateOf(0f) }
+    val macroCameraInfo by cameraViewModel.macroCameraInfo.collectAsStateWithLifecycle()
     var diopterFocusDepth by remember { mutableFloatStateOf(0f) }
     val swipeSensitivityFactor = 0.03f // スワイプしたPX数にかける係数。実機で動かしてちょうどいい感じの数字がこの辺り。
 
@@ -107,6 +111,25 @@ fun CameraScreen(
             context.checkPermission(Manifest.permission.ACCESS_FINE_LOCATION) &&
                     context.checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         )
+    }
+    var currentZoomRatio by remember { mutableFloatStateOf(1f) }
+
+    LaunchedEffect(clickedVolumeKey) {
+        val keyCode = clickedVolumeKey.first
+
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                currentZoomRatio = (currentZoomRatio + 0.25f).coerceAtMost(
+                    minOf(macroCameraInfo.maximumZoomRatio, 2f)
+                )
+            }
+
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                currentZoomRatio = (currentZoomRatio - 0.25f).coerceAtLeast(
+                    maxOf(macroCameraInfo.minimumZoomRatio, 0.5f)
+                )
+            }
+        }
     }
 
     ControlLight(
@@ -135,12 +158,13 @@ fun CameraScreen(
         )
     } else {
 
-        LaunchedEffect(hasCameraPermission, settings) {
+        LaunchedEffect(hasCameraPermission, settings, currentZoomRatio) {
             if (hasCameraPermission) {
-                maxFocusDistance = cameraViewModel.setupCamera(
+                cameraViewModel.setZoomRatio(currentZoomRatio)
+                cameraViewModel.setupCamera(
                     previewView = previewView,
                     lifecycleOwner = lifecycleOwner,
-                    settings = settings
+                    settings = settings,
                 )
             }
         }
@@ -150,7 +174,6 @@ fun CameraScreen(
                 cameraViewModel.setManualFocus(depth)
             }
         }
-
 
         Box(
             modifier = modifier.fillMaxSize(),
@@ -211,22 +234,43 @@ fun CameraScreen(
                         val currentFocusDistanceCm = 100 / diopterFocusDepth
                         val text = String.format(Locale.US, "%.1f", 100 / diopterFocusDepth)
 
-                        Text(
-                            buildAnnotatedString {
-                                append("フォーカス距離 : ")
-                                pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp))
-                                append(text)
-                                if (currentFocusDistanceCm.isFinite()) append("cm")
-                            },
-                            textAlign = TextAlign.Center,
+                        FlowRow(
                             modifier = Modifier
-                                .width(320.dp)
-                                .background(
-                                    color = Color.Black.copy(alpha = 0.3f),
-                                    shape = RoundedCornerShape(16.dp)
-                                )
-                                .padding(12.dp)
-                        )
+                                .background(color = Color.Black.copy(alpha = 0.5f))
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                        ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                buildAnnotatedString {
+                                    append("焦点距離 : ")
+                                    pushStyle(
+                                        SpanStyle(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 20.sp
+                                        )
+                                    )
+                                    append(text)
+                                    if (currentFocusDistanceCm.isFinite()) append("cm")
+                                },
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                buildAnnotatedString {
+                                    append("ズーム倍率 : ")
+                                    pushStyle(
+                                        SpanStyle(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 20.sp
+                                        )
+                                    )
+                                    append("x")
+                                    append(String.format(Locale.US, "%.2f", currentZoomRatio))
+                                },
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -236,10 +280,7 @@ fun CameraScreen(
                                         change.consume() // イベントを消費して他のジェスチャーに影響を与えないようにする
                                         val newFocusDistance =
                                             (diopterFocusDepth - dragPxAmount * swipeSensitivityFactor)
-                                                .coerceIn(
-                                                    0f,
-                                                    maxFocusDistance
-                                                ) // 0f から maxFocusDistance の範囲に制限
+                                                .coerceIn(0f, macroCameraInfo.minimumFocusDistance)
                                         diopterFocusDepth = newFocusDistance
                                     }
                                 }
@@ -308,7 +349,15 @@ private fun ControlLight(
 @Composable
 private fun LoadingScreen() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        LoadingIndicator(modifier = Modifier.size(100.dp))
+        ContainedLoadingIndicator(
+            modifier = Modifier.size(100.dp),
+            indicatorColor = MaterialTheme.colorScheme.primary,
+            containerColor = MaterialTheme.colorScheme.onPrimary,
+            polygons = listOf(
+                MaterialShapes.Clover8Leaf,
+                MaterialShapes.Clover4Leaf,
+            )
+        )
     }
 }
 
