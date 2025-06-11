@@ -51,6 +51,12 @@ class UserSettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateIsPreviewFullScreen(isPreviewFullScreen: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateIsPreviewFullScreen(isPreviewFullScreen)
+        }
+    }
+
     fun updateQuality(quality: UserPreferences.Quality) {
         viewModelScope.launch {
             val protoQuality = when (quality) {
