@@ -113,7 +113,7 @@ fun SettingsBottomSheet(
                     itemVerticalAlignment = Alignment.CenterVertically,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Text("画像のアスペクト比")
+                    Text("撮影写真のアスペクト比")
                     Spacer(modifier = Modifier.weight(1f))
                     M3ExpressiveButtonGroup(
                         modifier = Modifier.wrapContentWidth(),
