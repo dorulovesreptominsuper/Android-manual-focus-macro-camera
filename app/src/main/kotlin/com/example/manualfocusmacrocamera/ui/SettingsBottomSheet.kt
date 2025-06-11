@@ -97,6 +97,17 @@ fun SettingsBottomSheet(
                     )
                 }
                 Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("プレビューをフルスクリーンにする", modifier = Modifier.weight(1f))
+                    AnimatedColorSwitch(
+                        checked = settings.isPreviewFullScreen,
+                        onCheckedChange = { settingsViewModel.updateIsPreviewFullScreen(it) }
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     itemVerticalAlignment = Alignment.CenterVertically,
