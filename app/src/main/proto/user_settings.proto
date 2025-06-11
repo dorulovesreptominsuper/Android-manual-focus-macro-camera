@@ -20,4 +20,5 @@ message UserSettings {
   bool is_save_gps_location = 3;
   ImageQuality quality = 4;
   Aspect aspect = 5;
+  bool is_preview_full_screen = 6;
 }

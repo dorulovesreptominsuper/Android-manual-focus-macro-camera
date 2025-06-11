@@ -36,7 +36,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -64,7 +63,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.core.content.ContextCompat
-import androidx.graphics.shapes.RoundedPolygon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -89,10 +87,16 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cutout = WindowInsets.displayCutout.asPaddingValues()
-    val previewView = remember { PreviewView(context) }
 
     val settings by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
     val isSettingFetched by remember(settings) { mutableStateOf(settingsViewModel.hasReady) }
+
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType =
+                if (settings.isPreviewFullScreen) PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
+        }
+    }
 
     val macroCameraInfo by cameraViewModel.macroCameraInfo.collectAsStateWithLifecycle()
     var diopterFocusDepth by remember { mutableFloatStateOf(0f) }
@@ -180,14 +184,13 @@ fun CameraScreen(
             contentAlignment = Alignment.Center,
         ) {
             AndroidView(
-                factory = {
-                    previewView.apply {
-                        scaleType = PreviewView.ScaleType.FIT_CENTER
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
+                factory = { previewView },
+                modifier = Modifier.fillMaxSize(),
+                update = { view ->
+                    view.scaleType =
+                        if (settings.isPreviewFullScreen) PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
+                }
             )
-
             when {
                 hasCameraPermission.not() -> {
                     Column(

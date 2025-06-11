@@ -18,6 +18,7 @@ data class UserPreferences(
     val isPermissionPurposeExplained: Boolean = false,
     val isInitialLightOn: Boolean = false,
     val isSaveGpsLocation: Boolean = false,
+    val isPreviewFullScreen: Boolean = false,
     val quality: Quality = Quality.HIGH,
     val aspect: AspectRatio = AspectRatio.FOUR_THREE
 ) {

@@ -117,6 +117,17 @@ class UserPreferencesProtoRepository(private val dataStore: DataStore<UserSettin
     }
 
     /**
+     * Update the preview full screen setting.
+     */
+    suspend fun updateIsPreviewFullScreen(isPreviewFullScreen: Boolean) {
+        dataStore.updateData { currentSettings ->
+            currentSettings.toBuilder()
+                .setIsPreviewFullScreen(isPreviewFullScreen)
+                .build()
+        }
+    }
+
+    /**
      * Convert from Proto UserSettings to domain UserPreferences.
      */
     fun toUserPreferences(userSettings: UserSettings): UserPreferences {
@@ -124,6 +135,7 @@ class UserPreferencesProtoRepository(private val dataStore: DataStore<UserSettin
             isPermissionPurposeExplained = userSettings.isPermissionPurposeExplained,
             isInitialLightOn = userSettings.isInitialLightOn,
             isSaveGpsLocation = userSettings.isSaveGpsLocation,
+            isPreviewFullScreen = userSettings.isPreviewFullScreen,
             quality = when (userSettings.quality) {
                 ImageQuality.HIGH -> UserPreferences.Quality.HIGH
                 ImageQuality.MIDDLE -> UserPreferences.Quality.MIDDLE
@@ -137,5 +149,4 @@ class UserPreferencesProtoRepository(private val dataStore: DataStore<UserSettin
             }
         )
     }
-
 }
