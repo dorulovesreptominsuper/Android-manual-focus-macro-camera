@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.manualfocusmacrocamera.ui.SettingsBottomSheet
 import com.example.manualfocusmacrocamera.ui.camera.CameraScreen
 import com.example.manualfocusmacrocamera.ui.theme.MyApplicationTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -87,12 +86,10 @@ class MainActivity : ComponentActivity() {
                                 snackbarHostState.showSnackbar(message, "OK")
                             }
                         },
-                    )
-
-                    SettingsBottomSheet(
                         showSheet = showSheet,
                         setShowSheet = { showSheet = it }
                     )
+
                 }
             }
         }
@@ -100,6 +97,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            // 同じボタンを連続で入力した際にも別の入力だとComposeに認識させるためにシステム時間を持たせる
             keyEventState.value = Pair(keyCode, System.currentTimeMillis())
             return true
         }
