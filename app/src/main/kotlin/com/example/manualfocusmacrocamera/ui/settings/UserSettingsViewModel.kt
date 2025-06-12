@@ -19,20 +19,14 @@ class UserSettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesProtoRepository
 ) : ViewModel() {
     private val initialState = UserPreferences()
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.userSettingsFlow
-        .map { userPreferencesRepository.toUserPreferences(it) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = initialState
-        )
-
-    val hasReady: StateFlow<Boolean> = userPreferences.map { it !== initialState }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = false,
-        )
+    val userPreferences: StateFlow<Pair<UserPreferences, Boolean>> =
+        userPreferencesRepository.userSettingsFlow
+            .map { userPreferencesRepository.toUserPreferences(it) to true }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = initialState to false
+            )
 
     fun updateIsPermissionPurposeExplained(isPermissionPurposeExplained: Boolean) {
         viewModelScope.launch {
