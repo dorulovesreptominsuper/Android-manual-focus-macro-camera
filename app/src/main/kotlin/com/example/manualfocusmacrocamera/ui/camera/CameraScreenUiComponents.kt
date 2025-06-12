@@ -1,17 +1,30 @@
 package com.example.manualfocusmacrocamera.ui.camera
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FlashlightOff
+import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,15 +39,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview as ComposePreview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import com.example.manualfocusmacrocamera.ui.AnimatedAmplitudeWavyCircleButton
 import java.util.Locale
 
 
@@ -51,6 +68,35 @@ internal fun LoadingScreen() {
                 MaterialShapes.Clover4Leaf,
             )
         )
+    }
+}
+
+@Composable
+internal fun LightOnOffButton(
+    modifier: Modifier = Modifier,
+    buttonSize: Dp = 80.dp,
+    isLightOn: Boolean,
+    onClick: (Boolean) -> Unit,
+) {
+    val sizeModifier = modifier.size(buttonSize)
+    if (isLightOn) {
+        AnimatedAmplitudeWavyCircleButton(
+            modifier = sizeModifier,
+            onClick = { onClick(!isLightOn) },
+            imageVector = Icons.Default.FlashlightOn,
+        )
+    } else {
+        Button(
+            modifier = sizeModifier,
+            onClick = { onClick(!isLightOn) },
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors().copy(containerColor = Color.Gray)
+        ) {
+            Icon(
+                imageVector = Icons.Default.FlashlightOff,
+                contentDescription = ""
+            )
+        }
     }
 }
 
@@ -124,8 +170,44 @@ internal fun GestureArea(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun ControlLight(
+internal fun AskOpenAppSettingsForPermissionLayout() {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "カメラの権限がないので撮影ができません。カメラ権限を付与するために設定アプリを開きますか？")
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "（権限を付与したい場合は下のボタンから、画面上の「権限」欄をタップして「アプリの権限」画面を開き、「カメラ」「位置情報」をそれぞれタップして「許可」の選択肢を選んでください。）",
+            color = Color.LightGray,
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(
+            onClick = {
+                val intent =
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                context.startActivity(intent)
+            },
+            shape = MaterialTheme.shapes.largeIncreased,
+        ) {
+            Text(text = "アプリ情報画面を開く")
+        }
+
+    }
+}
+
+@Composable
+fun ControlLight(
     isCameraOpened: Boolean,
     lifecycleOwner: LifecycleOwner,
     onAppLaunch: () -> Unit,
@@ -153,4 +235,16 @@ internal fun ControlLight(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
+}
+
+@ComposePreview
+@Composable
+fun LightOnOffButtonPreview() {
+    LightOnOffButton(isLightOn = true, onClick = {})
+}
+
+@ComposePreview
+@Composable
+fun LightOffButtonPreview() {
+    LightOnOffButton(isLightOn = false, onClick = {})
 }
