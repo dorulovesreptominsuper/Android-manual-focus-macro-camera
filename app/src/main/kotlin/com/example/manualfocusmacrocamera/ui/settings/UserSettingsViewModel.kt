@@ -18,18 +18,15 @@ import javax.inject.Inject
 class UserSettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesProtoRepository
 ) : ViewModel() {
-
     private val initialState = UserPreferences()
-    val hasReady: Boolean
-        get() = userPreferences.value !== initialState
-
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.userSettingsFlow
-        .map { userPreferencesRepository.toUserPreferences(it) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = initialState
-        )
+    val userPreferences: StateFlow<Pair<UserPreferences, Boolean>> =
+        userPreferencesRepository.userSettingsFlow
+            .map { userPreferencesRepository.toUserPreferences(it) to true }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = initialState to false
+            )
 
     fun updateIsPermissionPurposeExplained(isPermissionPurposeExplained: Boolean) {
         viewModelScope.launch {

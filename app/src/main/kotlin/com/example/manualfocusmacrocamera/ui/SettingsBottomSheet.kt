@@ -29,26 +29,25 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.manualfocusmacrocamera.data.UserPreferences
-import com.example.manualfocusmacrocamera.ui.camera.CameraViewModel
+import com.example.manualfocusmacrocamera.ui.camera.MacroCameraInfo
 import com.example.manualfocusmacrocamera.ui.settings.UserSettingsViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsBottomSheet(
-    viewModel: CameraViewModel = hiltViewModel(),
     settingsViewModel: UserSettingsViewModel = hiltViewModel(),
+    macroCameraInfo: MacroCameraInfo,
     showSheet: Boolean,
     setShowSheet: (Boolean) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val macroCameraInfo by viewModel.macroCameraInfo.collectAsStateWithLifecycle()
     val minimumFocusDistance = macroCameraInfo.minimumFocusDistance
 
-    val settings by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
-    val isSettingFetched by remember(settings) { mutableStateOf(settingsViewModel.hasReady) }
+    val userPreferences by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
+    val settings by remember(userPreferences) { mutableStateOf(userPreferences.first) }
 
-    if (!isSettingFetched) return
+    if (!userPreferences.second) return
 
     if (showSheet) {
         ModalBottomSheet(
