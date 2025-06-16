@@ -54,7 +54,7 @@ class UserSettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateQuality(quality: UserPreferences.Quality) {
+    fun updateQuality(quality: UserPreferences.Quality, onUpdateCompleted: () -> Unit) {
         viewModelScope.launch {
             val protoQuality = when (quality) {
                 UserPreferences.Quality.HIGH -> ImageQuality.HIGH
@@ -62,16 +62,18 @@ class UserSettingsViewModel @Inject constructor(
                 UserPreferences.Quality.LOW -> ImageQuality.LOW
             }
             userPreferencesRepository.updateQuality(protoQuality)
+            onUpdateCompleted()
         }
     }
 
-    fun updateAspect(aspect: UserPreferences.AspectRatio) {
+    fun updateAspect(aspect: UserPreferences.AspectRatio, onUpdateCompleted: () -> Unit) {
         viewModelScope.launch {
             val protoAspect = when (aspect) {
                 UserPreferences.AspectRatio.FOUR_THREE -> Aspect.Four_Three
                 UserPreferences.AspectRatio.SIXTEEN_NINE -> Aspect.SIXTEEN_NINE
             }
             userPreferencesRepository.updateAspect(protoAspect)
+            onUpdateCompleted()
         }
     }
 }
