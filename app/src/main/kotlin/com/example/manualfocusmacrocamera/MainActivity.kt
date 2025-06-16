@@ -81,11 +81,6 @@ class MainActivity : ComponentActivity() {
                                 snackbarHostState.showSnackbar(message)
                             }
                         },
-                        showSnackbarWithCloseButton = { message ->
-                            scope.launch {
-                                snackbarHostState.showSnackbar(message, "OK")
-                            }
-                        },
                         showSheet = showSheet,
                         setShowSheet = { showSheet = it }
                     )

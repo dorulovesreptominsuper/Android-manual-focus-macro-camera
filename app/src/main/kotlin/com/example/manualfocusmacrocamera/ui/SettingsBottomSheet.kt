@@ -40,6 +40,7 @@ fun SettingsBottomSheet(
     macroCameraInfo: MacroCameraInfo,
     showSheet: Boolean,
     setShowSheet: (Boolean) -> Unit,
+    onImageCaptureSettingChenged: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val minimumFocusDistance = macroCameraInfo.minimumFocusDistance
@@ -121,7 +122,10 @@ fun SettingsBottomSheet(
                         currentSelectedIndex = settings.aspect.ordinal,
                         onOptionSelected = {
                             val targetAspect = UserPreferences.AspectRatio.entries[it]
-                            settingsViewModel.updateAspect(targetAspect)
+                            settingsViewModel.updateAspect(
+                                aspect = targetAspect,
+                                onUpdateCompleted = onImageCaptureSettingChenged
+                            )
                         }
                     )
                 }
@@ -140,7 +144,10 @@ fun SettingsBottomSheet(
                         currentSelectedIndex = settings.quality.ordinal,
                         onOptionSelected = {
                             val targetAspect = UserPreferences.Quality.entries[it]
-                            settingsViewModel.updateQuality(targetAspect)
+                            settingsViewModel.updateQuality(
+                                quality = targetAspect,
+                                onUpdateCompleted = onImageCaptureSettingChenged
+                            )
                         }
                     )
                 }

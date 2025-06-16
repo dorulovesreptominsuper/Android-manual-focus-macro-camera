@@ -29,12 +29,6 @@ import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,9 +42,6 @@ import androidx.compose.ui.tooling.preview.Preview as ComposePreview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
 import com.example.manualfocusmacrocamera.ui.AnimatedAmplitudeWavyCircleButton
 import java.util.Locale
 
@@ -172,7 +163,9 @@ internal fun GestureArea(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun AskOpenAppSettingsForPermissionLayout() {
+internal fun AskOpenAppSettingsForPermissionLayout(
+    onOpenSettingClicked: () -> Unit = {}
+) {
     val context = LocalContext.current
 
     Column(
@@ -191,6 +184,8 @@ internal fun AskOpenAppSettingsForPermissionLayout() {
         Spacer(modifier = Modifier.height(32.dp))
         Button(
             onClick = {
+                onOpenSettingClicked()
+
                 val intent =
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                         data = Uri.fromParts("package", context.packageName, null)
@@ -203,37 +198,6 @@ internal fun AskOpenAppSettingsForPermissionLayout() {
             Text(text = "アプリ情報画面を開く")
         }
 
-    }
-}
-
-@Composable
-fun ControlLight(
-    isCameraOpened: Boolean,
-    lifecycleOwner: LifecycleOwner,
-    onAppLaunch: () -> Unit,
-    onAppResume: () -> Unit,
-) {
-    var isLaunchedApp by remember { mutableStateOf(true) }
-
-    LaunchedEffect(isCameraOpened) {
-        if (isLaunchedApp && isCameraOpened) {
-            isLaunchedApp = false
-            onAppLaunch()
-        }
-    }
-    // onStop時に勝手にライトが消えてしまうのでonResumeかつカメラOPEN時に再度付け直す
-    DisposableEffect(lifecycleOwner, isCameraOpened) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                onAppResume()
-            }
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
     }
 }
 
