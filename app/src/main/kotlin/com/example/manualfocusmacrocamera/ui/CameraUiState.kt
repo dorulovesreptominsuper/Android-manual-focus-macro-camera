@@ -7,7 +7,6 @@ import com.example.manualfocusmacrocamera.ui.camera.MacroCameraInfo
 
 sealed interface CameraUiState {
     object DataStoreFetching : CameraUiState
-    object PermissionExplanation : CameraUiState
     object CheckPermission : CameraUiState
     data class PermissionRequesting(val targetPermissions: List<String>) : CameraUiState
     object NoCameraPermission : CameraUiState

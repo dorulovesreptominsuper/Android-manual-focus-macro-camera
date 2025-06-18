@@ -1,5 +1,6 @@
 package com.example.manualfocusmacrocamera.ui.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.datastore.Aspect
@@ -18,14 +19,25 @@ import javax.inject.Inject
 class UserSettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesProtoRepository
 ) : ViewModel() {
-    private val initialState = UserPreferences()
-    val userPreferences: StateFlow<Pair<UserPreferences, Boolean>> =
+    val userPreferences: StateFlow<UserPreferences?> =
         userPreferencesRepository.userSettingsFlow
-            .map { userPreferencesRepository.toUserPreferences(it) to true }
+            .map {
+                Log.d(
+                    "デバッグ：設定の状態",
+                    "UserPreferences: \n" +
+                            "isPermissionPurposeExplained=${it.isPermissionPurposeExplained}\n" +
+                            "isInitialLightOn ${it.isInitialLightOn}\n" +
+                            "isSaveGpsLocation ${it.isSaveGpsLocation}\n" +
+                            "isPreviewFullScreen ${it.isPreviewFullScreen}\n" +
+                            "aspect ${it.aspect}\n" +
+                            "quality ${it.quality}\n"
+                )
+                userPreferencesRepository.toUserPreferences(it)
+            }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
-                initialValue = initialState to false
+                initialValue = null
             )
 
     fun updateIsPermissionPurposeExplained(isPermissionPurposeExplained: Boolean) {

@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import android.util.Size
 import android.view.KeyEvent
 import androidx.annotation.OptIn
@@ -23,7 +24,6 @@ import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
-import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
@@ -76,7 +76,6 @@ import com.example.manualfocusmacrocamera.ui.settings.UserSettingsViewModel
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -107,29 +106,26 @@ fun CameraScreen(
     showSheet: Boolean,
     setShowSheet: (Boolean) -> Unit,
 ) {
-    val userPreferences by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
-    val isSettingDataFetched = snapshotFlow { userPreferences }.map { it.second }
-    val settings by remember(userPreferences) { mutableStateOf(userPreferences.first) }
-
+    val settings by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
     val uiState by cameraViewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        isSettingDataFetched.collect {
-            if (it) cameraViewModel.updateUiState(CameraUiState.PermissionExplanation)
+    LaunchedEffect(settings) {
+        if (settings == null) {
+            cameraViewModel.updateUiState(CameraUiState.CheckPermission)
         }
     }
-
-    CameraScreenContent(
-        uiState = uiState,
-        userPreferences = settings,
-        modifier = modifier,
-        cameraViewModel = cameraViewModel,
-        settingsViewModel = settingsViewModel,
-        showSnackbar = showSnackbar,
-        clickedVolumeKey = clickedVolumeKey,
-        showSheet = showSheet,
-        setShowSheet = setShowSheet,
-    )
+    settings?.let {
+        CameraScreenContent(
+            uiState = uiState,
+            userPreferences = it,
+            modifier = modifier,
+            cameraViewModel = cameraViewModel,
+            showSnackbar = showSnackbar,
+            clickedVolumeKey = clickedVolumeKey,
+            showSheet = showSheet,
+            setShowSheet = setShowSheet,
+        )
+    } ?: LoadingScreen()
 }
 
 
@@ -146,41 +142,31 @@ private fun CameraScreenContent(
     showSnackbar: (String) -> Unit = {},
     clickedVolumeKey: Pair<Int, Long>,
     showSheet: Boolean,
-
     setShowSheet: (Boolean) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    var isLightOn by remember(userPreferences) { mutableStateOf(userPreferences.isInitialLightOn) }
+    var isLightOn by remember { mutableStateOf(userPreferences.isInitialLightOn) }
 
+    LaunchedEffect(uiState) {
+        Log.d("デバッグ：UIState", "$uiState")
+    }
 
     when (uiState) {
         CameraUiState.DataStoreFetching -> {
             LoadingScreen()
         }
 
-        CameraUiState.PermissionExplanation -> {
-            ExplainPermissionsPurposeDialog(
-                shouldShowPermissionExplanationDialog = !userPreferences.isPermissionPurposeExplained,
-                onProcessFinish = {
-                    settingsViewModel.updateIsPermissionPurposeExplained(true)
-                    cameraViewModel.updateUiState(CameraUiState.CheckPermission)
-                }
-            )
-        }
-
         CameraUiState.CheckPermission -> {
-            CheckPermissions { requiredPermissions ->
-                when {
-                    requiredPermissions.isEmpty() -> {
-                        cameraViewModel.updateUiState(CameraUiState.SetupCamera)
-                    }
+            val isFirstAppLaunch by remember { mutableStateOf(!userPreferences.isPermissionPurposeExplained) }
 
-                    else -> {
-                        cameraViewModel.updateUiState(
-                            CameraUiState.PermissionRequesting(requiredPermissions)
-                        )
-                    }
-
+            CheckPermissions(
+                shouldShowPermissionExplanationDialog = isFirstAppLaunch,
+                onDialogOkClick = { settingsViewModel.updateIsPermissionPurposeExplained(true) }
+            ) { hasCameraPermission ->
+                if (hasCameraPermission) {
+                    cameraViewModel.updateUiState(CameraUiState.SetupCamera)
+                } else {
+                    cameraViewModel.updateUiState(CameraUiState.NoCameraPermission)
                 }
             }
         }
@@ -223,7 +209,9 @@ private fun CameraScreenContent(
         }
 
         CameraUiState.SetupCamera -> {
-            Setup { previewView, camera, capture, macroCameraInfo ->
+            Setup(
+                settings = userPreferences,
+            ) { previewView, camera, capture, macroCameraInfo ->
                 cameraViewModel.updateUiState(
                     CameraUiState.CameraOpened(previewView, camera, capture, macroCameraInfo)
                 )
@@ -232,6 +220,7 @@ private fun CameraScreenContent(
 
         is CameraUiState.CameraOpened -> {
             val context = LocalContext.current
+            val lifecycle = LocalLifecycleOwner.current.lifecycle
 
             val previewView = uiState.previewView
             val camera = uiState.camera
@@ -255,8 +244,31 @@ private fun CameraScreenContent(
                 camera.cameraControl.enableTorch(isOn)
             }
 
-            LaunchedEffect(Unit) {
-                camera.cameraControl.enableTorch(isLightOn)
+            DisposableEffect(lifecycleOwner) {
+                var isStopped = false
+
+                val observer = LifecycleEventObserver { _, event ->
+                    Log.d("デバッグ：Composeライフサイクル", "Event: $event $isStopped")
+                    when (event) {
+                        Lifecycle.Event.ON_RESUME -> {
+                            if (isStopped) {
+                                camera.cameraControl.enableTorch(isLightOn)
+                                isStopped = false
+                            }
+                        }
+
+                        Lifecycle.Event.ON_STOP -> {
+                            isStopped = true
+                        }
+
+                        else -> Unit
+                    }
+                }
+                lifecycle.addObserver(observer)
+
+                onDispose {
+                    lifecycle.removeObserver(observer)
+                }
             }
 
             LaunchedEffect(currentZoomRatio) {
@@ -303,12 +315,29 @@ private fun CameraScreenContent(
             }
 
             SettingsBottomSheet(
+                settings = userPreferences,
                 macroCameraInfo = macroCameraInfo,
                 showSheet = showSheet,
                 setShowSheet = setShowSheet,
-                onImageCaptureSettingChenged = {
-                    cameraViewModel.updateUiState(CameraUiState.SetupCamera)
-                }
+                onInitialLightStateChanged = {
+                    settingsViewModel.updateIsInitialLightOn(it)
+                },
+                onGpsLocationStateChanged = {
+                    settingsViewModel.updateIsSaveGpsLocation(it)
+                },
+                onPreviewFullScreenStateChanged = {
+                    settingsViewModel.updateIsPreviewFullScreen(it)
+                },
+                onAspectChanged = {
+                    settingsViewModel.updateAspect(it) {
+                        cameraViewModel.updateUiState(CameraUiState.SetupCamera) // ImageCaptureへの操作なのでセットアップの工程をやり直す必要がある
+                    }
+                },
+                onQualityChanged = {
+                    settingsViewModel.updateQuality(it) {
+                        cameraViewModel.updateUiState(CameraUiState.SetupCamera) // ImageCaptureへの操作なのでセットアップの工程をやり直す必要がある
+                    }
+                },
             )
 
             Box(
@@ -363,6 +392,7 @@ private fun CameraScreenContent(
                     if (hasFlashLight) {
                         LightOnOffButton(
                             isLightOn = isLightOn,
+                            onInitialize = { camera.cameraControl.enableTorch(isLightOn) },
                             onClick = switchTorch,
                         )
                     }
@@ -376,7 +406,7 @@ private fun CameraScreenContent(
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun Setup(
-    settingsViewModel: UserSettingsViewModel = hiltViewModel(),
+    settings: UserPreferences,
     onSetupCompleted: (PreviewView, Camera, ImageCapture, MacroCameraInfo) -> Unit,
 ) {
     val context = LocalContext.current
@@ -402,7 +432,9 @@ fun Setup(
     LoadingScreen()
 
     context.SetupCamera(
-        settingsViewModel = settingsViewModel,
+        isPreviewFullScreen = settings.isPreviewFullScreen,
+        aspectRatio = settings.aspect,
+        quality = settings.quality,
         onSetupCompleted = { pre, cam, cap, info ->
             previewView = pre
             camera = cam
@@ -423,27 +455,27 @@ fun Setup(
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun Context.SetupCamera(
-    settingsViewModel: UserSettingsViewModel,
+    isPreviewFullScreen: Boolean,
+    aspectRatio: UserPreferences.AspectRatio,
+    quality: UserPreferences.Quality,
     onSetupCompleted: (PreviewView, Camera, ImageCapture, MacroCameraInfo) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val userPreferences by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
-    val settings = userPreferences.first
 
     val previewView = remember {
         PreviewView(this).apply {
             scaleType =
-                if (settings.isPreviewFullScreen) PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
+                if (isPreviewFullScreen) PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
         }
     }
 
     LaunchedEffect(Unit) {
-
         try {
             val result = SetupCamera(
                 previewView = previewView,
                 lifecycleOwner = lifecycleOwner,
-                settings = settings,
+                aspectRatio = aspectRatio,
+                quality = quality,
             )
             if (result.first == null) {
                 throw Exception("Camera or ImageCapture is null")
@@ -453,65 +485,6 @@ fun Context.SetupCamera(
         } catch (e: Exception) {
             throw e
         }
-    }
-}
-
-
-@Composable
-private fun ExplainPermissionsPurposeDialog(
-    shouldShowPermissionExplanationDialog: Boolean,
-    onProcessFinish: (List<String>) -> Unit,
-) {
-    val needCameraPermissionRationale = ActivityCompat.shouldShowRequestPermissionRationale(
-        LocalContext.current.findActivity(),
-        Manifest.permission.CAMERA
-    )
-    val needLocationPermissionRationale = ActivityCompat.shouldShowRequestPermissionRationale(
-        LocalContext.current.findActivity(),
-        Manifest.permission.ACCESS_FINE_LOCATION
-    )
-    if (shouldShowPermissionExplanationDialog) {
-        ExplainPermissionsPurposeDialog(
-            dialogTitle = "このアプリが求める権限について",
-            onOkClick = {
-                onProcessFinish(
-                    listOf(
-                        Manifest.permission.CAMERA,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
-                )
-            },
-        )
-    } else if (needCameraPermissionRationale || needLocationPermissionRationale) {
-        val requiredPermissions = when {
-            needCameraPermissionRationale && needLocationPermissionRationale -> listOf(
-                Manifest.permission.CAMERA,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-
-            needCameraPermissionRationale -> listOf(
-                Manifest.permission.CAMERA,
-            )
-
-            else -> listOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-        }
-
-        ExplainPermissionsPurposeDialog(
-            dialogTitle = "このアプリが求める権限について",
-            onOkClick = { onProcessFinish(requiredPermissions) },
-            targetPermission = when {
-                needCameraPermissionRationale && needLocationPermissionRationale -> TargetPermission.BOTH
-                needCameraPermissionRationale -> TargetPermission.CAMERA
-                else -> TargetPermission.LOCATION
-            },
-        )
-    } else {
-        onProcessFinish(emptyList())
     }
 }
 
@@ -527,7 +500,8 @@ fun Context.checkPermission(permission: String): Boolean {
 suspend fun Context.SetupCamera(
     previewView: PreviewView,
     lifecycleOwner: LifecycleOwner,
-    settings: UserPreferences,
+    aspectRatio: UserPreferences.AspectRatio,
+    quality: UserPreferences.Quality,
 ): Triple<Camera?, ImageCapture, MacroCameraInfo> {
     val camMgr = getSystemService(Context.CAMERA_SERVICE) as CameraManager
     val cameraProvider = getCameraProvider()
@@ -564,7 +538,12 @@ suspend fun Context.SetupCamera(
     }
 
     val resolutionSelector =
-        createResolutionSelector(camMgr, cameraId = targetCameraId, settings = settings)
+        createResolutionSelector(
+            camMgr,
+            cameraId = targetCameraId,
+            aspectRatio = aspectRatio,
+            quality = quality
+        )
     val previewBuilder = CameraPreview.Builder().setResolutionSelector(resolutionSelector)
     Camera2Interop.Extender(previewBuilder).setPhysicalCameraId(targetCameraId)
     val imageCaptureBuilder = ImageCapture.Builder()
@@ -598,15 +577,16 @@ suspend fun Context.SetupCamera(
 private fun createResolutionSelector(
     camMgr: CameraManager,
     cameraId: String,
-    settings: UserPreferences,
+    aspectRatio: UserPreferences.AspectRatio,
+    quality: UserPreferences.Quality,
 ): ResolutionSelector {
     val aspectRatioStrategy = AspectRatioStrategy(
-        settings.getAspectRatio(),
+        aspectRatio.ordinal,
         AspectRatioStrategy.FALLBACK_RULE_AUTO
     )
     val resolutions =
         getSupportedJpegSizes(camMgr, cameraId).ifEmpty { throw IllegalStateException() }
-    val desiredSize = when (settings.quality) {
+    val desiredSize = when (quality) {
         UserPreferences.Quality.HIGH -> {
             resolutions.maxByOrNull { it.width * it.height } ?: resolutions[0]
         }
@@ -633,13 +613,6 @@ private fun getSupportedJpegSizes(camMgr: CameraManager, cameraId: String): List
     val characteristics = camMgr.getCameraCharacteristics(cameraId)
     val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
     return map?.getOutputSizes(ImageFormat.JPEG)?.toList() ?: emptyList()
-}
-
-private fun UserPreferences.getAspectRatio(): Int {
-    return when (aspect) {
-        UserPreferences.AspectRatio.FOUR_THREE -> AspectRatio.RATIO_4_3
-        UserPreferences.AspectRatio.SIXTEEN_NINE -> AspectRatio.RATIO_16_9
-    }
 }
 
 @RequiresApi(Build.VERSION_CODES.Q)

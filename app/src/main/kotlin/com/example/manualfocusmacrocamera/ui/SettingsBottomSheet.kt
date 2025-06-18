@@ -16,9 +16,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
@@ -26,29 +23,25 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.manualfocusmacrocamera.data.UserPreferences
 import com.example.manualfocusmacrocamera.ui.camera.MacroCameraInfo
-import com.example.manualfocusmacrocamera.ui.settings.UserSettingsViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsBottomSheet(
-    settingsViewModel: UserSettingsViewModel = hiltViewModel(),
+    settings: UserPreferences,
     macroCameraInfo: MacroCameraInfo,
     showSheet: Boolean,
     setShowSheet: (Boolean) -> Unit,
-    onImageCaptureSettingChenged: () -> Unit = {},
+    onInitialLightStateChanged: (Boolean) -> Unit = {},
+    onGpsLocationStateChanged: (Boolean) -> Unit = {},
+    onPreviewFullScreenStateChanged: (Boolean) -> Unit = {},
+    onAspectChanged: (UserPreferences.AspectRatio) -> Unit = {},
+    onQualityChanged: (UserPreferences.Quality) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val minimumFocusDistance = macroCameraInfo.minimumFocusDistance
-
-    val userPreferences by settingsViewModel.userPreferences.collectAsStateWithLifecycle()
-    val settings by remember(userPreferences) { mutableStateOf(userPreferences.first) }
-
-    if (!userPreferences.second) return
 
     if (showSheet) {
         ModalBottomSheet(
@@ -82,7 +75,7 @@ fun SettingsBottomSheet(
                     Text("アプリ起動時ライトを自動でONにする", modifier = Modifier.weight(1f))
                     AnimatedColorSwitch(
                         checked = settings.isInitialLightOn,
-                        onCheckedChange = { settingsViewModel.updateIsInitialLightOn(it) }
+                        onCheckedChange = onInitialLightStateChanged
                     )
                 }
                 Spacer(Modifier.height(16.dp))
@@ -93,7 +86,7 @@ fun SettingsBottomSheet(
                     Text("画像にGPS情報を付与する", modifier = Modifier.weight(1f))
                     AnimatedColorSwitch(
                         checked = settings.isSaveGpsLocation,
-                        onCheckedChange = { settingsViewModel.updateIsSaveGpsLocation(it) }
+                        onCheckedChange = onGpsLocationStateChanged
                     )
                 }
                 Spacer(Modifier.height(16.dp))
@@ -104,7 +97,7 @@ fun SettingsBottomSheet(
                     Text("プレビューをフルスクリーンにする", modifier = Modifier.weight(1f))
                     AnimatedColorSwitch(
                         checked = settings.isPreviewFullScreen,
-                        onCheckedChange = { settingsViewModel.updateIsPreviewFullScreen(it) }
+                        onCheckedChange = onPreviewFullScreenStateChanged
                     )
                 }
                 Spacer(Modifier.height(16.dp))
@@ -122,10 +115,7 @@ fun SettingsBottomSheet(
                         currentSelectedIndex = settings.aspect.ordinal,
                         onOptionSelected = {
                             val targetAspect = UserPreferences.AspectRatio.entries[it]
-                            settingsViewModel.updateAspect(
-                                aspect = targetAspect,
-                                onUpdateCompleted = onImageCaptureSettingChenged
-                            )
+                            onAspectChanged(targetAspect)
                         }
                     )
                 }
@@ -144,10 +134,7 @@ fun SettingsBottomSheet(
                         currentSelectedIndex = settings.quality.ordinal,
                         onOptionSelected = {
                             val targetAspect = UserPreferences.Quality.entries[it]
-                            settingsViewModel.updateQuality(
-                                quality = targetAspect,
-                                onUpdateCompleted = onImageCaptureSettingChenged
-                            )
+                            onQualityChanged(targetAspect)
                         }
                     )
                 }

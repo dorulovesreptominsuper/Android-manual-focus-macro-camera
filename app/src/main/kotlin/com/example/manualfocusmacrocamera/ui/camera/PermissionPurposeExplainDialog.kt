@@ -31,10 +31,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 
-enum class TargetPermission(val description: String) {
+enum class ExplainTargetPermission(val description: String) {
     CAMERA("写真の撮影のためにカメラの権限は必須です。"),
     LOCATION("写真にGPS情報（緯度経度・高度）を記録するためには位置情報権限が必要なので記録したい場合は権限を許可してください。"),
-    BOTH("この後にシステム経由でカメラと位置情報の使用権限を求めます。\n撮影のためにカメラの権限は必須です。位置情報権限は必須ではありませんが、写真にGPS情報を付与する場合は必要です。"),
+    BOTH("この後にシステム経由でカメラと位置情報の使用権限を求めます。\n\n撮影のためにカメラの権限は必須です。\n\n位置情報権限は必須ではありませんが、写真にGPS情報を付与する場合は必要です。"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -42,7 +42,7 @@ enum class TargetPermission(val description: String) {
 fun ExplainPermissionsPurposeDialog(
     dialogTitle: String,
     onOkClick: () -> Unit,
-    targetPermission: TargetPermission = TargetPermission.BOTH,
+    targetPermission: ExplainTargetPermission = ExplainTargetPermission.BOTH,
 ) {
     var showDialog by remember { mutableStateOf(true) }
 
