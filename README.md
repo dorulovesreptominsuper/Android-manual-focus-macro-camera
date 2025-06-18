@@ -3,6 +3,6 @@
 
 画面上を上下スワイプでピントの距離を変更。音量ボタンでズーム率を変更（0.25刻み）。
 
-＜主な仕様技術＞
+## 主な仕様技術
 Jetpack Compose + Dagger Hilt + Kotlin Flow + ProtoDataStore + Material Design 3 Expressive
 
